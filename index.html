@@ -31,6 +31,8 @@
         <button type="button" data-nav="dashboard">상담 목록</button>
         <button type="button" data-nav="library">스크립트 라이브러리</button>
       </nav>
+      <span id="user-email-display" class="user-email-display" hidden></span>
+      <button type="button" id="logout-btn" class="logout-btn" hidden>로그아웃</button>
       <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" aria-label="다크 모드로 전환" title="다크 모드로 전환">🌙</button>
     </div>
   </div>
@@ -67,6 +69,24 @@
   <div class="landing-closing reveal">
     <h2>지금 바로 상담 준비를 시작하세요</h2>
     <button type="button" id="landing-cta-btn-2" class="btn-pill-primary">상담 목록 보러가기</button>
+  </div>
+</section>
+
+<section id="view-auth" class="view hidden auth-view">
+  <div class="auth-card">
+    <h2 id="auth-title">로그인</h2>
+    <form id="auth-form">
+      <label class="field-label" for="auth-email">이메일</label>
+      <input type="email" id="auth-email" placeholder="you@example.com" required autocomplete="email">
+      <label class="field-label" for="auth-password">비밀번호</label>
+      <input type="password" id="auth-password" placeholder="6자 이상" required minlength="6" autocomplete="current-password">
+      <p id="auth-message" class="auth-message" hidden></p>
+      <button type="submit" id="auth-submit-btn" class="btn-pill-primary">로그인</button>
+    </form>
+    <p class="auth-toggle-row">
+      <span id="auth-toggle-text">계정이 없으신가요?</span>
+      <button type="button" id="auth-toggle-btn" class="auth-toggle-link">회원가입</button>
+    </p>
   </div>
 </section>
 

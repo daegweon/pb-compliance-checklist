@@ -1,15 +1,17 @@
 # 고객 상담 컴플라이언스 체크리스트 & 메모장
 
-증권사 영업점 직원(PB/RM)이 고객 상담 시 상품별 필수 고지사항을 빠짐없이 안내하고, 상담 내용을 기록·보관할 수 있도록 돕는 웹 앱입니다. 상품별 고지 스크립트는 정적 데이터로 내장하고, 상담 세션(체크리스트·메모)은 Supabase에 저장합니다.
+증권사 영업점 직원(PB/RM)이 고객 상담 시 상품별 필수 고지사항을 빠짐없이 안내하고, 상담 내용을 기록·보관할 수 있도록 돕는 웹 앱입니다. 상품별 고지 스크립트는 정적 데이터로 내장하고, 상담 세션(체크리스트·메모)은 Supabase에 저장합니다. 이메일/비밀번호 로그인을 지원하며, 상담 세션은 작성한 본인만 조회·수정할 수 있습니다.
 
-> ⚠️ **보안 주의**: 로그인 기능이 없어 클라이언트에 노출된 Supabase publishable(anon) 키를 아는 사람은 누구나 모든 상담 데이터를 읽고 쓸 수 있습니다. 실제 고객 개인정보를 다루려면 Supabase Auth + RLS(사용자별 접근 제어)를 먼저 추가해야 합니다.
+> ℹ️ **참고**: 로그인/회원가입만 지원하며 비밀번호 재설정 화면, 소셜 로그인, 관리자용 사용자 관리 기능은 없습니다. Supabase 프로젝트의 이메일 확인(Confirm email) 설정이 켜져 있다면 회원가입 후 이메일의 확인 링크를 눌러야 로그인할 수 있습니다.
 
 ## 주요 기능
 
+- **로그인/회원가입**: 이메일/비밀번호로 가입·로그인. 로그인하지 않은 상태에서 상담 목록/진행/라이브러리 화면에 접근하면 로그인 화면으로 이동
+- **사용자별 데이터 격리**: 상담 세션은 작성한 본인만 조회·수정·삭제 가능 (Supabase RLS로 DB 단에서 강제). 고지 스크립트 라이브러리는 로그인한 모든 사용자가 함께 쓰는 공용 자료
 - **상담 체크리스트**: 상품유형(펀드/ELS·ELB/채권/신탁)별 필수 확인·고지 항목을 체크리스트로 안내
 - **상담 메모장**: 고객별 상담 세션을 만들어 별칭, 상품유형, 메모를 기록하고 언제든 다시 열람
 - **고지 스크립트 라이브러리**: 상품유형별 필수 고지 문구 전문을 상담 중이나 별도 화면에서 열람
-- **PB 커스텀 스크립트**: PB가 상품유형별로 자신만의 고지 스크립트를 직접 등록·삭제 (라이브러리 화면 + 상담 화면 스크립트 패널에 함께 노출)
+- **PB 커스텀 스크립트**: 로그인한 사용자가 상품유형별로 자신만의 고지 스크립트를 등록·삭제 (라이브러리 화면 + 상담 화면 스크립트 패널에 함께 노출, 모든 사용자에게 공유됨)
 - **상담 상태 관리**: 상담 화면 하단의 "완료" 버튼으로 작성 내용 저장 후 상태를 완료 처리하고 목록으로 이동, "취소" 버튼은 저장 없이 목록으로 이동. 대시보드 목록에서도 체크박스로 완료 여부를 바로 토글 가능하며, 상태뱃지·체크리스트 완료율로도 표시
 - **변경 이력(감사 로그)**: 체크리스트 체크/해제, 상태 변경, 세션 생성 이력을 상담 화면의 "변경 이력" 패널에서 확인
 - **상담 요약 인쇄**: 상담 화면에서 고객명·상품유형·체크리스트·메모를 인쇄(브라우저 인쇄 기능으로 PDF 저장 겸용)
@@ -24,10 +26,11 @@
 
 | 화면 | 설명 |
 |---|---|
-| 랜딩페이지 | 서비스 소개, 핵심 기능 3가지 하이라이트, 상담 목록으로 진입하는 CTA |
-| 상담 목록(대시보드) | 요약 통계 카드(오늘 상담·이번 주 완료율·진행중 건수·상품유형별 분포), 저장된 상담 세션 목록(상태뱃지·완료율·완료 체크박스 포함), 검색, 상태 필터, 새 상담 시작, 상담 내역 삭제, CSV 내보내기 |
+| 랜딩페이지 | 서비스 소개, 핵심 기능 3가지 하이라이트, 상담 목록으로 진입하는 CTA (로그인 여부와 무관하게 열람 가능) |
+| 로그인/회원가입 | 이메일/비밀번호 입력, 로그인·회원가입 모드 전환, 오류/안내 메시지 |
+| 상담 목록(대시보드) | 요약 통계 카드(오늘 상담·이번 주 완료율·진행중 건수·상품유형별 분포), 본인이 작성한 상담 세션 목록(상태뱃지·완료율·완료 체크박스 포함), 검색, 상태 필터, 새 상담 시작, 상담 내역 삭제, CSV 내보내기 |
 | 상담 진행 | 고객명 입력, 상품유형 선택, 체크리스트, 고지 스크립트, 메모 작성, 변경 이력 조회, 요약 인쇄, 화면 하단의 취소/완료 버튼 |
-| 스크립트 라이브러리 | 상품유형별 고지 스크립트 전체 열람 + PB 커스텀 스크립트 등록/삭제 |
+| 스크립트 라이브러리 | 상품유형별 고지 스크립트 전체 열람 + 로그인 사용자 공용 커스텀 스크립트 등록/삭제 |
 
 ## 기술 스택
 
@@ -47,11 +50,12 @@ cd project
 
 `index.html`을 브라우저로 더블클릭해서 열면 됩니다 (`file://` 직접 실행 가능).
 
-Supabase를 직접 연결하려면 `js/app.js` 상단의 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`를 본인 프로젝트 값으로 바꾸고, 아래 스키마로 테이블을 생성하세요.
+Supabase를 직접 연결하려면 `js/app.js` 상단의 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`를 본인 프로젝트 값으로 바꾸고, Authentication에서 이메일 provider를 켠 뒤 아래 스키마로 테이블을 생성하세요.
 
 ```sql
 create table public.consultation_sessions (
   id text primary key,
+  user_id uuid references auth.users(id) on delete cascade,
   customer_alias text not null default '',
   product_type_id text,
   checklist jsonb not null default '{}'::jsonb,
@@ -64,10 +68,11 @@ create table public.consultation_sessions (
 
 alter table public.consultation_sessions enable row level security;
 
-create policy "anon can select sessions" on public.consultation_sessions for select to anon using (true);
-create policy "anon can insert sessions" on public.consultation_sessions for insert to anon with check (true);
-create policy "anon can update sessions" on public.consultation_sessions for update to anon using (true) with check (true);
-create policy "anon can delete sessions" on public.consultation_sessions for delete to anon using (true);
+-- 로그인한 본인이 작성한 세션만 조회/수정/삭제 가능
+create policy "users can select own sessions" on public.consultation_sessions for select to authenticated using (user_id = auth.uid());
+create policy "users can insert own sessions" on public.consultation_sessions for insert to authenticated with check (user_id = auth.uid());
+create policy "users can update own sessions" on public.consultation_sessions for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "users can delete own sessions" on public.consultation_sessions for delete to authenticated using (user_id = auth.uid());
 
 -- 감사 로그: 체크리스트 변경, 상태 변경, 세션 생성 이력
 create table public.session_audit_log (
@@ -80,10 +85,13 @@ create table public.session_audit_log (
 
 alter table public.session_audit_log enable row level security;
 
-create policy "anon can select audit log" on public.session_audit_log for select to anon using (true);
-create policy "anon can insert audit log" on public.session_audit_log for insert to anon with check (true);
+-- 세션 소유권을 통해 간접적으로 접근을 제한 (본인 세션의 로그만 조회/기록 가능)
+create policy "users can select own session audit log" on public.session_audit_log for select to authenticated
+  using (exists (select 1 from public.consultation_sessions cs where cs.id = session_audit_log.session_id and cs.user_id = auth.uid()));
+create policy "users can insert own session audit log" on public.session_audit_log for insert to authenticated
+  with check (exists (select 1 from public.consultation_sessions cs where cs.id = session_audit_log.session_id and cs.user_id = auth.uid()));
 
--- PB가 직접 등록하는 커스텀 고지 스크립트
+-- 로그인 사용자가 함께 쓰는 공용 커스텀 고지 스크립트 (소유자 구분 없음)
 create table public.custom_scripts (
   id text primary key,
   product_type_id text not null,
@@ -95,13 +103,13 @@ create table public.custom_scripts (
 
 alter table public.custom_scripts enable row level security;
 
-create policy "anon can select custom scripts" on public.custom_scripts for select to anon using (true);
-create policy "anon can insert custom scripts" on public.custom_scripts for insert to anon with check (true);
-create policy "anon can update custom scripts" on public.custom_scripts for update to anon using (true) with check (true);
-create policy "anon can delete custom scripts" on public.custom_scripts for delete to anon using (true);
+create policy "authenticated can select custom scripts" on public.custom_scripts for select to authenticated using (true);
+create policy "authenticated can insert custom scripts" on public.custom_scripts for insert to authenticated with check (true);
+create policy "authenticated can update custom scripts" on public.custom_scripts for update to authenticated using (true) with check (true);
+create policy "authenticated can delete custom scripts" on public.custom_scripts for delete to authenticated using (true);
 ```
 
-> 참고: 상담 세션을 삭제하면 `session_audit_log`의 관련 이력도 `on delete cascade`로 함께 삭제되어 복구할 수 없습니다. 감사 이력을 남기고 싶다면 삭제 대신 상태를 "취소"로 변경하는 방법도 있습니다.
+> 참고: 상담 세션을 삭제하면 `session_audit_log`의 관련 이력도 `on delete cascade`로 함께 삭제되어 복구할 수 없습니다. 감사 이력을 남기고 싶다면 삭제 대신 상태를 "취소"로 변경하는 방법도 있습니다. 로그인 도입 이전에 만들어진 데이터는 `user_id`가 없어 어떤 계정으로도 조회되지 않습니다.
 
 ## 폴더 구조
 
@@ -119,7 +127,7 @@ project/
 
 ## 제외 범위
 
-실제 증권사 시스템(CRM) 연동, 전자서명, 실시간 시세, 로그인/사용자별 권한 관리는 포함하지 않습니다. 체크리스트와 고지 스크립트는 참고용 예시이며, 실제 컴플라이언스 규정 문구가 아닙니다.
+실제 증권사 시스템(CRM) 연동, 전자서명, 실시간 시세는 포함하지 않습니다. 로그인은 이메일/비밀번호 방식만 지원하며 소셜 로그인, 비밀번호 재설정 화면, 관리자용 사용자 관리 기능은 없습니다. 체크리스트와 고지 스크립트는 참고용 예시이며, 실제 컴플라이언스 규정 문구가 아닙니다.
 
 ## 출처 및 라이선스
 

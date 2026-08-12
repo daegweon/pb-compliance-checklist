@@ -2,8 +2,9 @@
 
 - **순수 HTML/CSS/JS**: 빌드 도구(번들러/트랜스파일러)·npm 없이 순수 HTML/CSS/JS로만 구현한다. 단, Supabase JS 클라이언트는 CDN `<script>` 태그로 로드하는 예외를 둔다 (아래 "데이터 저장" 참고).
 - **파일 구성 고정**: 코드 파일은 `index.html`, `style.css`, `app.js` 3개만 유지한다. 파일을 추가로 분리하지 않는다.
-- **데이터 저장 (Supabase)**: 데이터는 Supabase(Postgres) `consultation_sessions`(상담 세션·상태), `session_audit_log`(체크리스트·상태 변경 감사 로그), `custom_scripts`(PB 등록 고지 스크립트) 테이블에 저장한다. 로그인 기능이 없는 내부용 도구라 publishable(anon) 키를 클라이언트 코드에 그대로 둔다 — 이 키를 아는 사람은 누구나 데이터를 읽고 쓸 수 있다는 뜻이다. 실제 고객 데이터를 다루려면 Supabase Auth + RLS로 사용자별 접근 제어를 반드시 추가해야 한다.
+- **데이터 저장 (Supabase)**: 데이터는 Supabase(Postgres) `consultation_sessions`(상담 세션·상태·소유자), `session_audit_log`(체크리스트·상태 변경 감사 로그), `custom_scripts`(로그인 사용자 공용 고지 스크립트) 테이블에 저장한다.
   - 이 예외 이전에는 브라우저 `localStorage`만 사용해 완전 오프라인으로 동작했다. Supabase 전환 이후로는 인터넷 연결이 없으면 상담 목록 조회·저장이 되지 않는다.
+- **인증 (Supabase Auth)**: 이메일/비밀번호 로그인·회원가입을 지원한다. `consultation_sessions`는 RLS로 본인(user_id = auth.uid())이 작성한 세션만 조회/수정/삭제할 수 있고, `session_audit_log`는 그 세션의 소유자만 접근 가능하다. `custom_scripts`는 소유자 구분 없이 로그인한 모든 사용자가 함께 보고 등록/삭제하는 공용 라이브러리로 유지한다. publishable(anon) 키는 원래 공개돼도 안전하도록 설계된 키이며, 실제 접근 제어는 로그인 여부와 RLS 정책이 담당한다.
 
 # 작업 규칙
 

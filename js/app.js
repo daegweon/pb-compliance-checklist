@@ -152,18 +152,54 @@ function initThemeToggle() {
 // ===================================================================
 // 3. Supabase 저장소 계층
 // ===================================================================
-// 이 앱은 로그인 기능이 없는 내부용 도구라 publishable(anon) 키를 그대로 클라이언트에 둔다.
-// 즉 이 키를 아는 사람은 누구나 상담 데이터를 읽고 쓸 수 있다 — 실제 고객 데이터를
-// 다루려면 Supabase Auth + RLS 정책으로 사용자별 접근 제어를 반드시 추가해야 한다.
+// publishable(anon) 키는 공개되어도 안전하도록 설계된 키다. 실제 접근 제어는
+// Supabase Auth(로그인) + 테이블의 RLS 정책(사용자별 조회/수정 제한)이 담당한다.
 const SUPABASE_URL = 'https://urnfiqtowzdtikhzbjtr.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_w9sdK4I-MR2412o4nYfvVQ_hM_j7D7h';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// ===================================================================
+// 3-0. 인증 (Supabase Auth: 이메일/비밀번호)
+// ===================================================================
+async function getCurrentUser() {
+  const { data, error } = await supabaseClient.auth.getUser();
+  if (error) return null;
+  return data.user;
+}
+
+async function signUpWithPassword(email, password) {
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function signInWithPassword(email, password) {
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function signOutCurrentUser() {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) throw error;
+}
+
+// Supabase Auth 에러 메시지를 사용자에게 보여줄 한국어 문구로 변환
+function describeAuthError(err) {
+  const msg = (err && err.message) || '';
+  if (msg.includes('Invalid login credentials')) return '이메일 또는 비밀번호가 올바르지 않습니다.';
+  if (msg.includes('User already registered')) return '이미 가입된 이메일입니다.';
+  if (msg.includes('Password should be at least')) return '비밀번호는 최소 6자 이상이어야 합니다.';
+  if (msg.includes('Unable to validate email address')) return '올바른 이메일 형식이 아닙니다.';
+  return msg || '요청 처리 중 오류가 발생했습니다.';
+}
 
 const SESSIONS_TABLE = 'consultation_sessions';
 
 function rowToSession(row) {
   return {
     id: row.id,
+    userId: row.user_id,
     customerAlias: row.customer_alias || '',
     productTypeId: row.product_type_id,
     checklist: row.checklist || {},
@@ -177,6 +213,7 @@ function rowToSession(row) {
 function sessionToRow(session) {
   return {
     id: session.id,
+    user_id: session.userId,
     customer_alias: session.customerAlias,
     product_type_id: session.productTypeId,
     checklist: session.checklist,
@@ -226,9 +263,13 @@ async function deleteSession(id) {
 }
 
 async function createSession() {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('로그인이 필요합니다.');
+
   const now = new Date().toISOString();
   const session = {
     id: generateId(),
+    userId: user.id,
     customerAlias: '',
     productTypeId: null,
     checklist: {},
@@ -329,6 +370,7 @@ async function deleteCustomScript(id) {
 // ===================================================================
 const state = {
   currentView: 'landing',
+  currentUser: null,
   activeSessionId: null,
   activeSession: null,
   dashboardSearch: '',
@@ -338,7 +380,19 @@ const state = {
 // 라이브러리 화면의 "나만의 스크립트 등록" 폼에서 현재 선택된 상품유형
 let customScriptFormTypeId = PRODUCT_TYPES[0].id;
 
+const AUTH_REQUIRED_VIEWS = ['dashboard', 'consultation', 'library'];
+
 function showView(viewId) {
+  // 로그인이 필요한 화면인데 로그인되어 있지 않으면 로그인 화면으로, 반대로 이미 로그인된 상태에서
+  // 로그인 화면에 들어오면 대시보드로 보낸다 (URL 해시도 실제 표시되는 화면과 맞춰준다)
+  if (AUTH_REQUIRED_VIEWS.includes(viewId) && !state.currentUser) {
+    if (location.hash !== '#auth') history.replaceState(null, '', '#auth');
+    viewId = 'auth';
+  } else if (viewId === 'auth' && state.currentUser) {
+    if (location.hash !== '#dashboard') history.replaceState(null, '', '#dashboard');
+    viewId = 'dashboard';
+  }
+
   document.querySelectorAll('.view').forEach((section) => {
     section.classList.add('hidden');
   });
@@ -348,7 +402,7 @@ function showView(viewId) {
     btn.classList.toggle('active', btn.dataset.nav === viewId);
   });
 
-  document.getElementById('app-nav').classList.toggle('hidden', viewId === 'landing');
+  document.getElementById('app-nav').classList.toggle('hidden', viewId === 'landing' || viewId === 'auth');
 
   state.currentView = viewId;
 
@@ -898,10 +952,38 @@ function initScrollReveal() {
   revealEls.forEach((el) => observer.observe(el));
 }
 
+// 헤더의 사용자 이메일 표시·로그아웃 버튼을 로그인 상태에 맞춰 켜고 끈다
+function updateAuthHeader() {
+  const emailEl = document.getElementById('user-email-display');
+  const logoutBtn = document.getElementById('logout-btn');
+  if (state.currentUser) {
+    emailEl.textContent = state.currentUser.email;
+    emailEl.hidden = false;
+    logoutBtn.hidden = false;
+  } else {
+    emailEl.textContent = '';
+    emailEl.hidden = true;
+    logoutBtn.hidden = true;
+  }
+}
+
+// 로그인 화면을 로그인/회원가입 모드로 전환 (라벨·버튼 문구·자동완성 힌트 갱신)
+let authMode = 'login';
+function setAuthMode(mode) {
+  authMode = mode;
+  const isSignup = mode === 'signup';
+  document.getElementById('auth-title').textContent = isSignup ? '회원가입' : '로그인';
+  document.getElementById('auth-submit-btn').textContent = isSignup ? '회원가입' : '로그인';
+  document.getElementById('auth-toggle-text').textContent = isSignup ? '이미 계정이 있으신가요?' : '계정이 없으신가요?';
+  document.getElementById('auth-toggle-btn').textContent = isSignup ? '로그인' : '회원가입';
+  document.getElementById('auth-password').setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
+  document.getElementById('auth-message').hidden = true;
+}
+
 // ===================================================================
 // 8. 초기화
 // ===================================================================
-function init() {
+async function init() {
   document.querySelectorAll('.app-nav button').forEach((btn) => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.nav));
   });
@@ -1013,6 +1095,68 @@ function init() {
   });
   document.getElementById('landing-cta-btn-2').addEventListener('click', () => {
     navigateTo('dashboard');
+  });
+
+  // 로그인/회원가입 폼
+  setAuthMode('login');
+  document.getElementById('auth-toggle-btn').addEventListener('click', () => {
+    setAuthMode(authMode === 'signup' ? 'login' : 'signup');
+  });
+  document.getElementById('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const messageEl = document.getElementById('auth-message');
+    const submitBtn = document.getElementById('auth-submit-btn');
+
+    messageEl.hidden = true;
+    submitBtn.disabled = true;
+    try {
+      if (authMode === 'signup') {
+        const result = await signUpWithPassword(email, password);
+        if (result.session) {
+          // 이메일 확인이 꺼져 있는 프로젝트라면 가입과 동시에 로그인된다
+          navigateTo('dashboard');
+        } else {
+          messageEl.textContent = '가입 확인 이메일을 보냈습니다. 메일함을 확인한 뒤 로그인해주세요.';
+          messageEl.hidden = false;
+          setAuthMode('login');
+        }
+      } else {
+        await signInWithPassword(email, password);
+        navigateTo('dashboard');
+      }
+    } catch (err) {
+      console.error('인증 실패:', err);
+      messageEl.textContent = describeAuthError(err);
+      messageEl.hidden = false;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('logout-btn');
+    btn.disabled = true;
+    try {
+      await signOutCurrentUser();
+      navigateTo('landing');
+    } catch (err) {
+      console.error('로그아웃 실패:', err);
+      alert('로그아웃에 실패했습니다.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // 로그인 상태를 먼저 확인한 뒤에 라우팅해야 보호된 화면이 잠깐 보였다가 사라지는 깜빡임을 막을 수 있다
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  state.currentUser = sessionData.session ? sessionData.session.user : null;
+  updateAuthHeader();
+
+  supabaseClient.auth.onAuthStateChange((_event, authSession) => {
+    state.currentUser = authSession ? authSession.user : null;
+    updateAuthHeader();
   });
 
   window.addEventListener('hashchange', handleHashChange);
