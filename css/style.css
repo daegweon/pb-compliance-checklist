@@ -320,6 +320,57 @@ main {
   text-decoration: underline;
 }
 
+.dashboard-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--color-surface-soft);
+  border-radius: var(--radius-md);
+  padding: var(--space-base);
+}
+
+.stat-card-wide {
+  grid-column: 1 / -1;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.3px;
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.stat-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  font-size: 13px;
+  color: var(--color-body);
+}
+
 .dashboard-filters {
   display: flex;
   flex-wrap: wrap;
@@ -412,6 +463,22 @@ html[data-theme="dark"] .status-badge.status-cancelled {
   margin-left: auto;
 }
 
+.session-complete-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.session-complete-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
 .consultation-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -425,6 +492,14 @@ html[data-theme="dark"] .status-badge.status-cancelled {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
+}
+
+/* 변경 이력/인쇄/상담 취소/상담 완료 버튼: 상담 화면 안에서 툴바 하나에 4개가 몰려 있어
+   기본 pill 크기(40px)보다 한 단계 더 줄여 다른 입력 요소들과 비례를 맞춘다 */
+.consultation-actions button {
+  padding: 7px 14px;
+  font-size: 13px;
+  min-height: 32px;
 }
 
 .btn-outline-pill {
@@ -639,6 +714,15 @@ html[data-theme="dark"] .status-badge.status-cancelled {
   padding: 13px 11px;
 }
 
+.consultation-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-hairline);
+}
+
 /* 랜딩페이지 */
 .landing {
   padding: 0;
@@ -811,6 +895,19 @@ html[data-theme="dark"] .status-badge.status-cancelled {
   }
   .session-delete-btn {
     margin-left: 0;
+  }
+  .consultation-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .consultation-actions {
+    width: 100%;
+  }
+  .consultation-footer-actions {
+    flex-direction: column-reverse;
+  }
+  .consultation-footer-actions button {
+    width: 100%;
   }
 }
 

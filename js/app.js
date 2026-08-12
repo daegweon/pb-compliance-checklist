@@ -426,26 +426,158 @@ async function renderScriptPanel(productTypeId, targetEl) {
   }
 }
 
+// 대시보드 목록·CSV 내보내기가 동일한 검색/필터 기준을 공유하도록 분리
+function filterSessions(sessions, { search, status }) {
+  let result = sessions;
+  if (search) {
+    result = result.filter((s) => s.customerAlias.includes(search));
+  }
+  if (status !== 'all') {
+    result = result.filter((s) => s.status === status);
+  }
+  return result;
+}
+
+function startOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=일, 1=월, ...
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diffToMonday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isSameLocalDate(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// 대시보드 요약 통계: 오늘 상담 건수 / 이번 주 완료율 / 진행중 건수 / 상품유형별 분포
+function computeDashboardStats(sessions) {
+  const now = new Date();
+  const weekStart = startOfWeek(now);
+
+  const todayCount = sessions.filter((s) => isSameLocalDate(new Date(s.createdAt), now)).length;
+
+  const thisWeekSessions = sessions.filter((s) => new Date(s.createdAt) >= weekStart);
+  const thisWeekCompleted = thisWeekSessions.filter((s) => s.status === 'completed').length;
+  const completionRate = thisWeekSessions.length > 0
+    ? Math.round((thisWeekCompleted / thisWeekSessions.length) * 100)
+    : 0;
+
+  const inProgressCount = sessions.filter((s) => s.status === 'in_progress').length;
+
+  const productBreakdown = PRODUCT_TYPES.map((type) => ({
+    label: type.label,
+    count: sessions.filter((s) => s.productTypeId === type.id).length
+  }));
+  const unselectedCount = sessions.filter((s) => !s.productTypeId).length;
+
+  return {
+    todayCount,
+    completionRate,
+    thisWeekCompleted,
+    thisWeekTotal: thisWeekSessions.length,
+    inProgressCount,
+    productBreakdown,
+    unselectedCount
+  };
+}
+
+function renderDashboardStats(sessions) {
+  const container = document.getElementById('dashboard-stats');
+  if (sessions.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const stats = computeDashboardStats(sessions);
+  const breakdownParts = stats.productBreakdown.map((p) => `<span>${escapeHtml(p.label)} ${p.count}</span>`);
+  if (stats.unselectedCount > 0) {
+    breakdownParts.push(`<span>미선택 ${stats.unselectedCount}</span>`);
+  }
+
+  container.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">오늘 상담</span>
+      <span class="stat-value">${stats.todayCount}건</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">이번 주 완료율</span>
+      <span class="stat-value">${stats.completionRate}%</span>
+      <span class="stat-sub">${stats.thisWeekCompleted}/${stats.thisWeekTotal}건</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">진행중 상담</span>
+      <span class="stat-value">${stats.inProgressCount}건</span>
+    </div>
+    <div class="stat-card stat-card-wide">
+      <span class="stat-label">상품유형별 분포</span>
+      <div class="stat-breakdown">${breakdownParts.join('')}</div>
+    </div>
+  `;
+}
+
+// CSV 값 이스케이프: 쉼표·따옴표·줄바꿈이 포함되면 큰따옴표로 감싼다
+function toCsvValue(value) {
+  const str = String(value ?? '');
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function buildSessionsCsv(sessions) {
+  const header = ['생성일시', '수정일시', '고객명(별칭)', '상품유형', '상태', '체크리스트 완료율', '메모'];
+  const rows = sessions.map((s) => {
+    const items = CHECKLISTS[s.productTypeId];
+    const total = items ? items.length : 0;
+    const done = items ? items.filter((item) => s.checklist[item.id]).length : 0;
+    const progress = total > 0 ? `${done}/${total}` : '-';
+    return [
+      formatDateTime(s.createdAt),
+      formatDateTime(s.updatedAt),
+      s.customerAlias || '',
+      getProductLabel(s.productTypeId),
+      SESSION_STATUS_LABELS[s.status] || s.status,
+      progress,
+      s.notes || ''
+    ];
+  });
+  return [header, ...rows].map((row) => row.map(toCsvValue).join(',')).join('\r\n');
+}
+
+// 엑셀에서 한글이 깨지지 않도록 UTF-8 BOM을 붙여 다운로드한다
+function downloadCsv(filename, csvContent) {
+  const BOM = '﻿';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 async function renderDashboard() {
   const container = document.getElementById('session-list');
   container.innerHTML = '<p class="empty">불러오는 중...</p>';
 
   const term = state.dashboardSearch.trim();
-  let sessions;
+  let allSessions;
   try {
-    sessions = await loadSessions();
+    allSessions = await loadSessions();
   } catch (e) {
     console.error('세션 목록 조회 실패:', e);
     container.innerHTML = '<p class="empty">서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요.</p>';
+    document.getElementById('dashboard-stats').innerHTML = '';
     return;
   }
 
-  if (term) {
-    sessions = sessions.filter((s) => s.customerAlias.includes(term));
-  }
-  if (state.dashboardStatusFilter !== 'all') {
-    sessions = sessions.filter((s) => s.status === state.dashboardStatusFilter);
-  }
+  renderDashboardStats(allSessions);
+
+  const sessions = filterSessions(allSessions, { search: term, status: state.dashboardStatusFilter });
 
   if (sessions.length === 0) {
     container.innerHTML = (term || state.dashboardStatusFilter !== 'all')
@@ -466,6 +598,10 @@ async function renderDashboard() {
       <span class="session-date">${formatDateTime(s.updatedAt)}</span>
       <span class="session-alias">${escapeHtml(alias)}</span>
       <span class="badge">${escapeHtml(getProductLabel(s.productTypeId))}</span>
+      <label class="session-complete-check" title="완료 처리">
+        <input type="checkbox" class="session-complete-checkbox" data-id="${escapeHtml(s.id)}" ${s.status === 'completed' ? 'checked' : ''}>
+        완료
+      </label>
       <span class="status-badge status-${escapeHtml(s.status)}">${escapeHtml(statusLabel)}</span>
       <span class="session-progress">
         <span class="progress-track"><span class="progress-fill" style="width:${progressPct}%"></span></span>
@@ -478,6 +614,23 @@ async function renderDashboard() {
   container.querySelectorAll('.session-row').forEach((row) => {
     row.addEventListener('click', () => {
       navigateTo('consultation', row.dataset.id);
+    });
+  });
+
+  container.querySelectorAll('.session-complete-checkbox').forEach((cb) => {
+    const session = sessions.find((s) => s.id === cb.dataset.id);
+    cb.addEventListener('click', (e) => e.stopPropagation());
+    cb.addEventListener('change', async () => {
+      if (!session) return;
+      cb.disabled = true;
+      try {
+        await updateSessionStatus(session, cb.checked ? 'completed' : 'in_progress');
+        await renderDashboard();
+      } catch (err) {
+        console.error('완료 상태 변경 실패:', err);
+        alert('완료 상태 변경에 실패했습니다.');
+        await renderDashboard();
+      }
     });
   });
 
@@ -764,20 +917,46 @@ function init() {
     state.dashboardStatusFilter = e.target.value;
     renderDashboard();
   });
-
-  // 상담 완료/취소/인쇄/변경이력 버튼은 상담화면 재렌더 때마다 다시 만들어지는 DOM이 아니므로
-  // (중복 바인딩을 피하기 위해) init()에서 한 번만 바인딩하고, 대상 세션은 state.activeSession으로 참조한다
-  document.getElementById('complete-session-btn').addEventListener('click', async () => {
-    const session = state.activeSession;
-    if (!session) return;
-    await updateSessionStatus(session, 'completed');
-    navigateTo('dashboard');
+  document.getElementById('export-csv-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('export-csv-btn');
+    btn.disabled = true;
+    try {
+      const allSessions = await loadSessions();
+      const sessions = filterSessions(allSessions, {
+        search: state.dashboardSearch.trim(),
+        status: state.dashboardStatusFilter
+      });
+      if (sessions.length === 0) {
+        alert('내보낼 상담 내역이 없습니다.');
+        return;
+      }
+      const csv = buildSessionsCsv(sessions);
+      const dateStr = formatDateTime(new Date().toISOString()).slice(0, 10);
+      downloadCsv(`상담목록_${dateStr}.csv`, csv);
+    } catch (e) {
+      console.error('CSV 내보내기 실패:', e);
+      alert('상담 목록을 불러오지 못해 CSV로 내보낼 수 없습니다.');
+    } finally {
+      btn.disabled = false;
+    }
   });
-  document.getElementById('cancel-session-btn').addEventListener('click', async () => {
+
+  // 인쇄/변경이력/완료/취소 버튼은 상담화면 재렌더 때마다 다시 만들어지는 DOM이 아니므로
+  // (중복 바인딩을 피하기 위해) init()에서 한 번만 바인딩하고, 대상 세션은 state.activeSession으로 참조한다
+  document.getElementById('complete-consultation-btn').addEventListener('click', async () => {
     const session = state.activeSession;
     if (!session) return;
-    if (!confirm('이 상담을 취소 처리하시겠습니까?')) return;
-    await updateSessionStatus(session, 'cancelled');
+    const btn = document.getElementById('complete-consultation-btn');
+    btn.disabled = true;
+    try {
+      // 디바운스된 자동저장을 기다리지 않고, 현재까지 입력된 내용을 즉시 저장한 뒤 완료 처리한다
+      await updateSessionStatus(session, 'completed');
+      navigateTo('dashboard');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  document.getElementById('cancel-consultation-btn').addEventListener('click', () => {
     navigateTo('dashboard');
   });
   document.getElementById('history-toggle-btn').addEventListener('click', () => {

@@ -74,8 +74,12 @@
   <section id="view-dashboard" class="view hidden">
     <div class="section-row">
       <h2>상담 목록</h2>
-      <button type="button" id="new-session-btn">+ 새 상담 시작</button>
+      <div class="dashboard-header-actions">
+        <button type="button" id="export-csv-btn" class="btn-outline-pill btn-pill-sm" title="현재 검색·필터 기준으로 CSV 내보내기">CSV 내보내기</button>
+        <button type="button" id="new-session-btn">+ 새 상담 시작</button>
+      </div>
     </div>
+    <div class="stats-grid" id="dashboard-stats"></div>
     <div class="dashboard-filters">
       <input type="text" id="session-search" placeholder="고객명(별칭)으로 검색">
       <select id="session-status-filter">
@@ -99,8 +103,6 @@
       <div class="consultation-actions">
         <button type="button" id="history-toggle-btn" class="btn-outline-pill">변경 이력</button>
         <button type="button" id="print-summary-btn" class="btn-outline-pill">인쇄</button>
-        <button type="button" id="cancel-session-btn" class="btn-outline-pill btn-outline-pill-danger">상담 취소</button>
-        <button type="button" id="complete-session-btn" class="btn-pill-primary btn-pill-sm">상담 완료</button>
       </div>
     </div>
 
@@ -132,6 +134,11 @@
     <div class="consultation-block">
       <label class="field-label" for="notes-textarea">상담 메모</label>
       <textarea id="notes-textarea" rows="6" placeholder="상담 내용을 기록하세요"></textarea>
+    </div>
+
+    <div class="consultation-footer-actions">
+      <button type="button" id="cancel-consultation-btn" class="btn-outline-pill">취소</button>
+      <button type="button" id="complete-consultation-btn" class="btn-pill-primary">완료</button>
     </div>
   </section>
 
