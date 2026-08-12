@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고객 상담 컴플라이언스 체크리스트 & 메모장</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <button type="button" id="brand-link" class="app-title" aria-label="홈으로 이동 (고객 상담 컴플라이언스 체크리스트 & 메모장)" title="홈으로 이동">
+      <svg class="brand-icon" viewBox="0 0 24 24" width="32" height="32" aria-hidden="true" focusable="false">
+        <rect x="2" y="2" width="20" height="20" rx="6" fill="#ff385c"></rect>
+        <text x="12" y="15.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8.5" font-weight="700" letter-spacing="-0.3" fill="#ffffff">WM</text>
+      </svg>
+    </button>
+    <nav class="app-nav hidden" id="app-nav">
+      <button type="button" data-nav="dashboard">상담 목록</button>
+      <button type="button" data-nav="library">스크립트 라이브러리</button>
+    </nav>
+  </div>
+</header>
+
+<section id="view-landing" class="view landing">
+  <div class="landing-hero">
+    <img class="landing-hero-img" src="image/hero.jpg" alt="상담 중인 사무실" loading="eager" fetchpriority="high">
+    <div class="landing-hero-overlay">
+      <h2 class="landing-hero-title">고객 상담, 놓치는 것 없이<br>더 안전하게</h2>
+      <p class="landing-hero-sub">상품유형별 필수 고지 체크리스트와 상담 메모를 한 곳에서 관리하세요.</p>
+      <button type="button" id="landing-cta-btn" class="btn-pill-primary">지금 시작하기</button>
+    </div>
+  </div>
+
+  <div class="landing-features">
+    <article class="feature-card">
+      <img src="image/feature-checklist.jpg" alt="체크리스트" loading="lazy" decoding="async">
+      <h3>상담 체크리스트</h3>
+      <p>상품유형별 필수 확인·고지 항목을 빠짐없이 안내합니다.</p>
+    </article>
+    <article class="feature-card">
+      <img src="image/feature-notes.jpg" alt="상담 메모" loading="lazy" decoding="async">
+      <h3>상담 메모장</h3>
+      <p>고객별 상담 내용을 세션 단위로 기록하고 다시 찾아볼 수 있습니다.</p>
+    </article>
+    <article class="feature-card">
+      <img src="image/feature-scripts.jpg" alt="고지 스크립트" loading="lazy" decoding="async">
+      <h3>고지 스크립트 라이브러리</h3>
+      <p>상품유형별 필수 고지 스크립트를 언제든 열람할 수 있습니다.</p>
+    </article>
+  </div>
+
+  <div class="landing-closing">
+    <h2>지금 바로 상담 준비를 시작하세요</h2>
+    <button type="button" id="landing-cta-btn-2" class="btn-pill-primary">상담 목록 보러가기</button>
+  </div>
+</section>
+
+<main>
+  <section id="view-dashboard" class="view hidden">
+    <div class="section-row">
+      <h2>상담 목록</h2>
+      <button type="button" id="new-session-btn">+ 새 상담 시작</button>
+    </div>
+    <input type="text" id="session-search" placeholder="고객명(별칭)으로 검색">
+    <div id="session-list"></div>
+  </section>
+
+  <section id="view-consultation" class="view hidden">
+    <div class="section-row">
+      <button type="button" id="back-to-dashboard-btn">← 상담 목록으로</button>
+      <h2>상담 진행</h2>
+    </div>
+
+    <div class="consultation-block">
+      <label class="field-label" for="alias-input">고객명(별칭)</label>
+      <input type="text" id="alias-input" placeholder="예: 김OO 고객">
+    </div>
+
+    <div class="consultation-block">
+      <label class="field-label">상품유형</label>
+      <div id="product-type-picker" class="product-type-picker"></div>
+    </div>
+
+    <div class="consultation-block">
+      <label class="field-label">체크리스트</label>
+      <ul id="checklist-container" class="checklist-list"></ul>
+    </div>
+
+    <div class="consultation-block">
+      <label class="field-label">고지 스크립트</label>
+      <div id="consultation-script-panel"></div>
+    </div>
+
+    <div class="consultation-block">
+      <label class="field-label" for="notes-textarea">상담 메모</label>
+      <textarea id="notes-textarea" rows="6" placeholder="상담 내용을 기록하세요"></textarea>
+    </div>
+  </section>
+
+  <section id="view-library" class="view hidden">
+    <h2>스크립트 라이브러리</h2>
+    <div id="library-content"></div>
+  </section>
+</main>
+
+<script src="js/app.js"></script>
+</body>
+</html>

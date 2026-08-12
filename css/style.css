@@ -1,0 +1,512 @@
+/* Airbnb Cereal/Circular은 Airbnb의 비공개 라이선스 폰트라 재배포할 수 없어,
+   DESIGN.md가 명시한 공식 대체 폰트인 Inter(SIL Open Font License, 자체 호스팅)를 사용한다. */
+@font-face {
+  font-family: "Inter";
+  src: url("../font/Inter-Variable.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Airbnb 디자인 토큰 (DESIGN.md 기준, Cereal/Circular 대신 Inter + 시스템 폰트로 대체) */
+:root {
+  --color-primary: #ff385c;
+  --color-primary-active: #e00b41;
+  --color-primary-disabled: #ffd1da;
+  --color-ink: #222222;
+  --color-body: #3f3f3f;
+  --color-muted: #6a6a6a;
+  --color-muted-soft: #929292;
+  --color-hairline: #dddddd;
+  --color-hairline-soft: #ebebeb;
+  --color-border-strong: #c1c1c1;
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f7f7f7;
+  --color-surface-strong: #f2f2f2;
+  --color-on-primary: #ffffff;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  --space-xxs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-base: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  --shadow-card: rgba(0, 0, 0, 0.02) 0 0 0 1px, rgba(0, 0, 0, 0.04) 0 2px 6px 0, rgba(0, 0, 0, 0.1) 0 4px 8px 0;
+
+  --font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+
+  /* 화면이 넓어져도 헤더·본문·랜딩 섹션이 같은 기준으로 정렬되도록 공용 콘텐츠 폭 */
+  --content-max-width: 1200px;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  color: var(--color-ink);
+  background: var(--color-canvas);
+}
+
+.app-header {
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+  padding: 0 var(--space-lg);
+}
+
+.app-header-inner {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-sm) 0;
+}
+
+.app-title {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.app-title:hover {
+  background: var(--color-surface-strong);
+}
+
+.brand-icon {
+  display: block;
+}
+
+.app-nav {
+  display: flex;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.app-nav.hidden {
+  display: none !important;
+}
+
+.app-nav button {
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  padding: var(--space-sm) 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-muted);
+  cursor: pointer;
+  min-height: 40px;
+  border-bottom: 2px solid transparent;
+}
+
+.app-nav button.active {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-ink);
+}
+
+main {
+  padding: var(--space-lg);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.view.hidden {
+  display: none !important;
+}
+
+.script-card {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: var(--space-base) var(--space-lg);
+  margin-bottom: var(--space-base);
+}
+
+.script-card h3 {
+  margin: 0 0 var(--space-sm);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.script-body h4 {
+  margin: 0 0 var(--space-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.script-body p {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-body);
+  margin: 0 0 var(--space-md);
+}
+
+.empty {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+
+.section-row h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.18px;
+}
+
+#new-session-btn {
+  border: none;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-sm);
+  padding: 14px 24px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 48px;
+}
+
+#new-session-btn:active {
+  background: var(--color-primary-active);
+}
+
+#session-search {
+  width: 100%;
+  font-family: inherit;
+  font-size: 16px;
+  padding: 14px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+  height: 48px;
+}
+
+#session-search:focus {
+  outline: none;
+  border: 2px solid var(--color-ink);
+  padding: 13px 11px;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-base);
+  margin-bottom: var(--space-sm);
+  cursor: pointer;
+}
+
+.session-row:hover {
+  box-shadow: var(--shadow-card);
+}
+
+.session-date {
+  font-size: 14px;
+  color: var(--color-muted);
+  min-width: 120px;
+}
+
+.session-alias {
+  flex: 1;
+  font-size: 16px;
+  color: var(--color-ink);
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-strong);
+  color: var(--color-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#back-to-dashboard-btn {
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--space-sm) 0;
+  text-decoration: underline;
+}
+
+.consultation-block {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: var(--space-base) var(--space-lg);
+  margin-bottom: var(--space-base);
+}
+
+.field-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.product-type-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.type-btn {
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas);
+  border-radius: var(--radius-full);
+  padding: 10px 20px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.type-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checklist-item {
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-hairline-soft);
+}
+
+.checklist-item:last-child {
+  border-bottom: none;
+}
+
+.checklist-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: 16px;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.checklist-item input[type="checkbox"] {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+}
+
+#notes-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 16px;
+  padding: 14px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  color: var(--color-ink);
+}
+
+#notes-textarea:focus {
+  outline: none;
+  border: 2px solid var(--color-ink);
+  padding: 13px 11px;
+}
+
+#alias-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 16px;
+  padding: 14px 12px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  min-height: 48px;
+  color: var(--color-ink);
+}
+
+#alias-input:focus {
+  outline: none;
+  border: 2px solid var(--color-ink);
+  padding: 13px 11px;
+}
+
+/* 랜딩페이지 */
+.landing {
+  padding: 0;
+}
+
+.btn-pill-primary {
+  display: inline-block;
+  border: none;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-full);
+  padding: 14px 28px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 48px;
+}
+
+.btn-pill-primary:active {
+  background: var(--color-primary-active);
+}
+
+.landing-hero {
+  position: relative;
+  width: 100%;
+  /* aspect-ratio 대신 clamp로 높이만 계산 — 부모 폭이 넓어질 때
+     aspect-ratio+max-height 조합이 폭 자체를 줄여버리는 크로미움 동작을 피한다 */
+  height: clamp(320px, 33vw, 640px);
+  overflow: hidden;
+}
+
+.landing-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+  display: block;
+}
+
+.landing-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.55) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-lg);
+}
+
+.landing-hero-title {
+  margin: 0 0 var(--space-md);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-on-primary);
+}
+
+.landing-hero-sub {
+  margin: 0 0 var(--space-lg);
+  font-size: 16px;
+  color: var(--color-on-primary);
+  max-width: 480px;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+  padding: var(--space-xxl) var(--space-lg);
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.feature-card {
+  text-align: left;
+}
+
+.feature-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-base);
+  display: block;
+}
+
+.feature-card h3 {
+  margin: 0 0 var(--space-xs);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.feature-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.landing-closing {
+  text-align: center;
+  padding: var(--space-xxl) var(--space-lg);
+  background: var(--color-surface-soft);
+}
+
+.landing-closing h2 {
+  margin: 0 0 var(--space-lg);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* 태블릿: 3열이 좁게 눌리는 것을 막고 2열로 자연스럽게 전환 */
+@media (min-width: 744px) and (max-width: 1023px) {
+  .landing-features {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 743px) {
+  .app-header-inner {
+    flex-wrap: wrap;
+  }
+  .landing-hero-title {
+    font-size: 24px;
+  }
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+}

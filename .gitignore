@@ -1,0 +1,8 @@
+# 환경 변수/비밀값 (반드시 커밋 제외)
+.env
+.env.*
+!.env.example
+
+# OS/에디터 잡파일
+.DS_Store
+Thumbs.db
