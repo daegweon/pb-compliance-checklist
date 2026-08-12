@@ -115,50 +115,74 @@ function getProductLabel(productTypeId) {
 }
 
 // ===================================================================
-// 3. localStorage 저장소 계층
+// 3. Supabase 저장소 계층
 // ===================================================================
-const STORAGE_KEY = 'pb_compliance_app::sessions_v1';
+// 이 앱은 로그인 기능이 없는 내부용 도구라 publishable(anon) 키를 그대로 클라이언트에 둔다.
+// 즉 이 키를 아는 사람은 누구나 상담 데이터를 읽고 쓸 수 있다 — 실제 고객 데이터를
+// 다루려면 Supabase Auth + RLS 정책으로 사용자별 접근 제어를 반드시 추가해야 한다.
+const SUPABASE_URL = 'https://urnfiqtowzdtikhzbjtr.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_w9sdK4I-MR2412o4nYfvVQ_hM_j7D7h';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-function loadSessions() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.error('세션 데이터 파싱 실패, 빈 목록으로 대체:', e);
-    return [];
-  }
+const SESSIONS_TABLE = 'consultation_sessions';
+
+function rowToSession(row) {
+  return {
+    id: row.id,
+    customerAlias: row.customer_alias || '',
+    productTypeId: row.product_type_id,
+    checklist: row.checklist || {},
+    notes: row.notes || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
 }
 
-function saveSessions(sessions) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+function sessionToRow(session) {
+  return {
+    id: session.id,
+    customer_alias: session.customerAlias,
+    product_type_id: session.productTypeId,
+    checklist: session.checklist,
+    notes: session.notes,
+    created_at: session.createdAt,
+    updated_at: session.updatedAt
+  };
 }
 
-// session을 id 기준으로 upsert(있으면 교체, 없으면 추가)
-function upsertSession(session) {
-  const sessions = loadSessions();
-  const idx = sessions.findIndex((s) => s.id === session.id);
-  if (idx >= 0) {
-    sessions[idx] = session;
-  } else {
-    sessions.push(session);
-  }
-  saveSessions(sessions);
+async function loadSessions() {
+  const { data, error } = await supabaseClient
+    .from(SESSIONS_TABLE)
+    .select('*')
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return data.map(rowToSession);
+}
+
+async function getSession(id) {
+  const { data, error } = await supabaseClient
+    .from(SESSIONS_TABLE)
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToSession(data) : null;
+}
+
+// session을 id 기준으로 upsert(있으면 교체, 없으면 추가). 실패해도 화면 흐름은 막지 않고 로그만 남긴다.
+async function upsertSession(session) {
+  const { error } = await supabaseClient.from(SESSIONS_TABLE).upsert(sessionToRow(session));
+  if (error) console.error('세션 저장 실패:', error);
   return session;
 }
 
-function getSession(id) {
-  return loadSessions().find((s) => s.id === id) || null;
-}
-
 // 세션 필드 변경 후 updatedAt 갱신 + 저장까지 한 번에 처리
-function touchAndSaveSession(session) {
+async function touchAndSaveSession(session) {
   session.updatedAt = new Date().toISOString();
-  upsertSession(session);
+  await upsertSession(session);
 }
 
-function createSession() {
+async function createSession() {
   const now = new Date().toISOString();
   const session = {
     id: generateId(),
@@ -169,7 +193,7 @@ function createSession() {
     createdAt: now,
     updatedAt: now
   };
-  upsertSession(session);
+  await upsertSession(session);
   return session;
 }
 
@@ -254,10 +278,19 @@ function renderScriptPanel(productTypeId, targetEl) {
   targetEl.innerHTML = `<h4>${escapeHtml(script.title)}</h4>${paragraphs}`;
 }
 
-function renderDashboard() {
+async function renderDashboard() {
   const container = document.getElementById('session-list');
+  container.innerHTML = '<p class="empty">불러오는 중...</p>';
+
   const term = state.dashboardSearch.trim();
-  let sessions = loadSessions().slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  let sessions;
+  try {
+    sessions = await loadSessions();
+  } catch (e) {
+    console.error('세션 목록 조회 실패:', e);
+    container.innerHTML = '<p class="empty">서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요.</p>';
+    return;
+  }
 
   if (term) {
     sessions = sessions.filter((s) => s.customerAlias.includes(term));
@@ -286,19 +319,29 @@ function renderDashboard() {
   });
 }
 
-function renderConsultation() {
-  const session = getSession(state.activeSessionId);
+async function renderConsultation() {
+  let session;
+  try {
+    session = await getSession(state.activeSessionId);
+  } catch (e) {
+    console.error('세션 조회 실패:', e);
+    replaceView('dashboard');
+    return;
+  }
   if (!session) {
     // 세션이 없으면(예: 삭제되었거나 잘못된 id) 대시보드로 되돌아간다 (히스토리에 남기지 않음)
     replaceView('dashboard');
     return;
   }
 
+  // 텍스트 입력은 매 키 입력마다 저장하지 않고 타이핑이 멈췄을 때만 저장한다
+  const debouncedSave = debounce(() => touchAndSaveSession(session), 500);
+
   const aliasEl = document.getElementById('alias-input');
   aliasEl.value = session.customerAlias;
   aliasEl.oninput = () => {
     session.customerAlias = aliasEl.value;
-    touchAndSaveSession(session);
+    debouncedSave();
   };
 
   const picker = document.getElementById('product-type-picker');
@@ -309,8 +352,10 @@ function renderConsultation() {
   picker.querySelectorAll('.type-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       session.productTypeId = btn.dataset.type;
+      picker.querySelectorAll('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      renderChecklist(session);
+      renderScriptPanel(session.productTypeId, document.getElementById('consultation-script-panel'));
       touchAndSaveSession(session);
-      renderConsultation();
     });
   });
 
@@ -321,7 +366,7 @@ function renderConsultation() {
   notesEl.value = session.notes;
   notesEl.oninput = () => {
     session.notes = notesEl.value;
-    touchAndSaveSession(session);
+    debouncedSave();
   };
 }
 
@@ -373,9 +418,15 @@ function init() {
   document.querySelectorAll('.app-nav button').forEach((btn) => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.nav));
   });
-  document.getElementById('new-session-btn').addEventListener('click', () => {
-    const session = createSession();
-    navigateTo('consultation', session.id);
+  document.getElementById('new-session-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('new-session-btn');
+    btn.disabled = true;
+    try {
+      const session = await createSession();
+      navigateTo('consultation', session.id);
+    } finally {
+      btn.disabled = false;
+    }
   });
   document.getElementById('back-to-dashboard-btn').addEventListener('click', () => {
     navigateTo('dashboard');
