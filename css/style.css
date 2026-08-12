@@ -769,67 +769,46 @@ html[data-theme="dark"] .status-badge.status-cancelled {
 }
 
 .auth-card h2 {
-  margin: 0 0 var(--space-lg);
+  margin: 0 0 var(--space-sm);
   font-size: 22px;
   font-weight: 700;
   text-align: center;
 }
 
-.auth-card form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
+.auth-subtitle {
+  margin: 0 0 var(--space-lg);
+  font-size: 14px;
+  color: var(--color-muted);
+  text-align: center;
 }
 
-#auth-email,
-#auth-password {
+.btn-google {
   width: 100%;
-  font-family: inherit;
-  font-size: 16px;
-  padding: 14px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 12px 20px;
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-sm);
   background: var(--color-canvas);
   color: var(--color-ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
   min-height: 48px;
 }
 
-#auth-email:focus,
-#auth-password:focus {
-  outline: none;
-  border: 2px solid var(--color-ink);
-  padding: 13px 11px;
+.btn-google:hover {
+  background: var(--color-surface-strong);
 }
 
 .auth-message {
   font-size: 13px;
   color: var(--color-primary-active);
-  margin: 0;
-}
-
-#auth-submit-btn {
-  width: 100%;
-  margin-top: var(--space-sm);
-}
-
-.auth-toggle-row {
+  margin: var(--space-md) 0 0;
   text-align: center;
-  margin: var(--space-lg) 0 0;
-  font-size: 14px;
-  color: var(--color-muted);
-}
-
-.auth-toggle-link {
-  border: none;
-  background: none;
-  color: var(--color-ink);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-  margin-left: 4px;
 }
 
 /* 랜딩페이지 */

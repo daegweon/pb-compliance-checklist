@@ -154,12 +154,17 @@ function initThemeToggle() {
 // ===================================================================
 // publishable(anon) 키는 공개되어도 안전하도록 설계된 키다. 실제 접근 제어는
 // Supabase Auth(로그인) + 테이블의 RLS 정책(사용자별 조회/수정 제한)이 담당한다.
+// flowType을 pkce로 지정해 OAuth 로그인 후 리다이렉트가 "?code=..." 쿼리 파라미터로 오도록 한다
+// (기본 implicit 플로우는 "#access_token=..." 형태의 URL 해시를 쓰는데, 이 앱은 해시를 라우팅에
+// 사용하고 있어 그대로 두면 로그인 콜백과 화면 전환 로직이 충돌한다).
 const SUPABASE_URL = 'https://urnfiqtowzdtikhzbjtr.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_w9sdK4I-MR2412o4nYfvVQ_hM_j7D7h';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: { flowType: 'pkce' }
+});
 
 // ===================================================================
-// 3-0. 인증 (Supabase Auth: 이메일/비밀번호)
+// 3-0. 인증 (Supabase Auth: Google 로그인)
 // ===================================================================
 async function getCurrentUser() {
   const { data, error } = await supabaseClient.auth.getUser();
@@ -167,16 +172,13 @@ async function getCurrentUser() {
   return data.user;
 }
 
-async function signUpWithPassword(email, password) {
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+// Google 로그인 화면으로 리다이렉트한다 (성공/실패 결과는 페이지가 돌아온 뒤 onAuthStateChange로 전달됨)
+async function signInWithGoogle() {
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  });
   if (error) throw error;
-  return data;
-}
-
-async function signInWithPassword(email, password) {
-  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
 }
 
 async function signOutCurrentUser() {
@@ -184,14 +186,9 @@ async function signOutCurrentUser() {
   if (error) throw error;
 }
 
-// Supabase Auth 에러 메시지를 사용자에게 보여줄 한국어 문구로 변환
+// Supabase Auth 에러 메시지를 사용자에게 보여줄 문구로 변환
 function describeAuthError(err) {
-  const msg = (err && err.message) || '';
-  if (msg.includes('Invalid login credentials')) return '이메일 또는 비밀번호가 올바르지 않습니다.';
-  if (msg.includes('User already registered')) return '이미 가입된 이메일입니다.';
-  if (msg.includes('Password should be at least')) return '비밀번호는 최소 6자 이상이어야 합니다.';
-  if (msg.includes('Unable to validate email address')) return '올바른 이메일 형식이 아닙니다.';
-  return msg || '요청 처리 중 오류가 발생했습니다.';
+  return (err && err.message) || '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
 }
 
 const SESSIONS_TABLE = 'consultation_sessions';
@@ -967,19 +964,6 @@ function updateAuthHeader() {
   }
 }
 
-// 로그인 화면을 로그인/회원가입 모드로 전환 (라벨·버튼 문구·자동완성 힌트 갱신)
-let authMode = 'login';
-function setAuthMode(mode) {
-  authMode = mode;
-  const isSignup = mode === 'signup';
-  document.getElementById('auth-title').textContent = isSignup ? '회원가입' : '로그인';
-  document.getElementById('auth-submit-btn').textContent = isSignup ? '회원가입' : '로그인';
-  document.getElementById('auth-toggle-text').textContent = isSignup ? '이미 계정이 있으신가요?' : '계정이 없으신가요?';
-  document.getElementById('auth-toggle-btn').textContent = isSignup ? '로그인' : '회원가입';
-  document.getElementById('auth-password').setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
-  document.getElementById('auth-message').hidden = true;
-}
-
 // ===================================================================
 // 8. 초기화
 // ===================================================================
@@ -1097,41 +1081,20 @@ async function init() {
     navigateTo('dashboard');
   });
 
-  // 로그인/회원가입 폼
-  setAuthMode('login');
-  document.getElementById('auth-toggle-btn').addEventListener('click', () => {
-    setAuthMode(authMode === 'signup' ? 'login' : 'signup');
-  });
-  document.getElementById('auth-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
+  // Google 로그인
+  document.getElementById('google-signin-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('google-signin-btn');
     const messageEl = document.getElementById('auth-message');
-    const submitBtn = document.getElementById('auth-submit-btn');
-
     messageEl.hidden = true;
-    submitBtn.disabled = true;
+    btn.disabled = true;
     try {
-      if (authMode === 'signup') {
-        const result = await signUpWithPassword(email, password);
-        if (result.session) {
-          // 이메일 확인이 꺼져 있는 프로젝트라면 가입과 동시에 로그인된다
-          navigateTo('dashboard');
-        } else {
-          messageEl.textContent = '가입 확인 이메일을 보냈습니다. 메일함을 확인한 뒤 로그인해주세요.';
-          messageEl.hidden = false;
-          setAuthMode('login');
-        }
-      } else {
-        await signInWithPassword(email, password);
-        navigateTo('dashboard');
-      }
+      await signInWithGoogle();
+      // 성공 시 이 시점에서 브라우저가 Google 로그인 화면으로 이동하므로 아래 코드는 보통 실행되지 않는다
     } catch (err) {
-      console.error('인증 실패:', err);
+      console.error('Google 로그인 실패:', err);
       messageEl.textContent = describeAuthError(err);
       messageEl.hidden = false;
-    } finally {
-      submitBtn.disabled = false;
+      btn.disabled = false;
     }
   });
 
@@ -1154,9 +1117,14 @@ async function init() {
   state.currentUser = sessionData.session ? sessionData.session.user : null;
   updateAuthHeader();
 
-  supabaseClient.auth.onAuthStateChange((_event, authSession) => {
+  supabaseClient.auth.onAuthStateChange((event, authSession) => {
     state.currentUser = authSession ? authSession.user : null;
     updateAuthHeader();
+    // Google 로그인 콜백(?code=...)은 페이지가 다시 로드된 뒤 비동기로 처리되므로,
+    // 로그인 화면에 머무르고 있다가 로그인이 확정되면 그제서야 대시보드로 이동시킨다
+    if (event === 'SIGNED_IN' && state.currentView === 'auth') {
+      navigateTo('dashboard');
+    }
   });
 
   window.addEventListener('hashchange', handleHashChange);
