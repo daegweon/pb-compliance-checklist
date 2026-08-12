@@ -949,18 +949,21 @@ function initScrollReveal() {
   revealEls.forEach((el) => observer.observe(el));
 }
 
-// 헤더의 사용자 이메일 표시·로그아웃 버튼을 로그인 상태에 맞춰 켜고 끈다
+// 헤더의 사용자 이메일 표시·로그인/로그아웃 버튼을 로그인 상태에 맞춰 켜고 끈다
 function updateAuthHeader() {
   const emailEl = document.getElementById('user-email-display');
   const logoutBtn = document.getElementById('logout-btn');
+  const loginBtn = document.getElementById('header-login-btn');
   if (state.currentUser) {
     emailEl.textContent = state.currentUser.email;
     emailEl.hidden = false;
     logoutBtn.hidden = false;
+    loginBtn.hidden = true;
   } else {
     emailEl.textContent = '';
     emailEl.hidden = true;
     logoutBtn.hidden = true;
+    loginBtn.hidden = false;
   }
 }
 
@@ -1112,17 +1115,24 @@ async function init() {
     }
   });
 
+  document.getElementById('header-login-btn').addEventListener('click', () => {
+    navigateTo('auth');
+  });
+
   // 로그인 상태를 먼저 확인한 뒤에 라우팅해야 보호된 화면이 잠깐 보였다가 사라지는 깜빡임을 막을 수 있다
   const { data: sessionData } = await supabaseClient.auth.getSession();
   state.currentUser = sessionData.session ? sessionData.session.user : null;
   updateAuthHeader();
 
   supabaseClient.auth.onAuthStateChange((event, authSession) => {
+    const wasLoggedOut = !state.currentUser;
     state.currentUser = authSession ? authSession.user : null;
     updateAuthHeader();
-    // Google 로그인 콜백(?code=...)은 페이지가 다시 로드된 뒤 비동기로 처리되므로,
-    // 로그인 화면에 머무르고 있다가 로그인이 확정되면 그제서야 대시보드로 이동시킨다
-    if (event === 'SIGNED_IN' && state.currentView === 'auth') {
+    // Google 로그인은 브라우저가 완전히 다른 페이지(Google)로 이동했다가 돌아오는 방식이라,
+    // 콜백(?code=...) 처리 시점엔 이 스크립트가 처음부터 다시 실행된 상태다. 즉 state.currentView는
+    // 항상 기본값(landing)이라 "로그인 화면에 있었는지"로는 판단할 수 없고, "로그아웃 상태였다가
+    // 방금 로그인됐는지"로 판단해야 한다.
+    if (event === 'SIGNED_IN' && wasLoggedOut) {
       navigateTo('dashboard');
     }
   });
