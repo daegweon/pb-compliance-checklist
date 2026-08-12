@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>고객 상담 컴플라이언스 체크리스트 & 메모장</title>
 <link rel="stylesheet" href="css/style.css">
+<script>
+// 다크모드 깜빡임(FOUC) 방지: CSS/본문이 그려지기 전에 저장된 테마(또는 시스템 설정)를 먼저 적용한다
+(function () {
+  try {
+    var stored = localStorage.getItem('pb_compliance_app::theme');
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', stored || (prefersDark ? 'dark' : 'light'));
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 
@@ -16,10 +26,13 @@
         <text x="12" y="15.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8.5" font-weight="700" letter-spacing="-0.3" fill="#ffffff">WM</text>
       </svg>
     </button>
-    <nav class="app-nav hidden" id="app-nav">
-      <button type="button" data-nav="dashboard">상담 목록</button>
-      <button type="button" data-nav="library">스크립트 라이브러리</button>
-    </nav>
+    <div class="app-header-actions">
+      <nav class="app-nav hidden" id="app-nav">
+        <button type="button" data-nav="dashboard">상담 목록</button>
+        <button type="button" data-nav="library">스크립트 라이브러리</button>
+      </nav>
+      <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" aria-label="다크 모드로 전환" title="다크 모드로 전환">🌙</button>
+    </div>
   </div>
 </header>
 

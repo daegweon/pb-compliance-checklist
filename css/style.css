@@ -1,14 +1,15 @@
-/* Airbnb Cereal/Circular은 Airbnb의 비공개 라이선스 폰트라 재배포할 수 없어,
-   DESIGN.md가 명시한 공식 대체 폰트인 Inter(SIL Open Font License, 자체 호스팅)를 사용한다. */
+/* Airbnb Cereal/Circular은 Airbnb의 비공개 라이선스 폰트라 재배포할 수 없다.
+   Inter는 한글 글리프가 없어 한글 텍스트가 시스템 기본 폰트(맑은 고딕 등)로만 표시되던 문제가 있었기에,
+   한글·영문을 모두 깔끔하게 커버하는 Pretendard(SIL Open Font License, 자체 호스팅)로 교체한다. */
 @font-face {
-  font-family: "Inter";
-  src: url("../font/Inter-Variable.woff2") format("woff2");
-  font-weight: 400 700;
+  font-family: "Pretendard Variable";
+  src: url("../font/Pretendard-Variable.woff2") format("woff2-variations");
+  font-weight: 45 920;
   font-style: normal;
   font-display: swap;
 }
 
-/* Airbnb 디자인 토큰 (DESIGN.md 기준, Cereal/Circular 대신 Inter + 시스템 폰트로 대체) */
+/* Airbnb 디자인 토큰 (DESIGN.md 기준, Cereal/Circular 대신 Pretendard + 시스템 폰트로 대체) */
 :root {
   --color-primary: #ff385c;
   --color-primary-active: #e00b41;
@@ -43,10 +44,29 @@
 
   --shadow-card: rgba(0, 0, 0, 0.02) 0 0 0 1px, rgba(0, 0, 0, 0.04) 0 2px 6px 0, rgba(0, 0, 0, 0.1) 0 4px 8px 0;
 
-  --font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --font-family: "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
 
   /* 화면이 넓어져도 헤더·본문·랜딩 섹션이 같은 기준으로 정렬되도록 공용 콘텐츠 폭 */
   --content-max-width: 1200px;
+
+  /* 네이티브 폼 컨트롤(셀렉트박스·스크롤바 등)도 라이트 테마에 맞게 렌더링되도록 힌트를 준다 */
+  color-scheme: light;
+}
+
+/* 다크모드: html[data-theme="dark"]일 때 색상 토큰만 교체하면 나머지 스타일은 변수를 통해 자동으로 따라온다 */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink: #f2f2f2;
+  --color-body: #d6d6d6;
+  --color-muted: #a8a8a8;
+  --color-muted-soft: #8a8a8a;
+  --color-hairline: #3a3a3a;
+  --color-hairline-soft: #2e2e2e;
+  --color-border-strong: #5c5c5c;
+  --color-canvas: #121212;
+  --color-surface-soft: #1c1c1e;
+  --color-surface-strong: #262626;
+  --shadow-card: rgba(0, 0, 0, 0.4) 0 0 0 1px, rgba(0, 0, 0, 0.3) 0 2px 6px 0, rgba(0, 0, 0, 0.5) 0 4px 8px 0;
 }
 
 html {
@@ -62,6 +82,7 @@ body {
   font-family: var(--font-family);
   color: var(--color-ink);
   background: var(--color-canvas);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .app-header {
@@ -98,6 +119,31 @@ body {
 
 .brand-icon {
   display: block;
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--color-surface-strong);
 }
 
 .app-nav {
@@ -192,12 +238,12 @@ main {
   background: var(--color-primary);
   color: var(--color-on-primary);
   border-radius: var(--radius-sm);
-  padding: 14px 24px;
+  padding: 9px 16px;
   font-family: inherit;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  min-height: 48px;
+  min-height: 38px;
 }
 
 #new-session-btn:active {
@@ -213,6 +259,8 @@ main {
   border-radius: var(--radius-sm);
   margin-bottom: var(--space-md);
   height: 48px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
 }
 
 #session-search:focus {
@@ -319,6 +367,21 @@ main {
 .status-badge.status-cancelled {
   background: #fdeceb;
   color: var(--color-primary-active);
+}
+
+html[data-theme="dark"] .status-badge.status-in_progress {
+  background: #4a3c14;
+  color: #f0c96b;
+}
+
+html[data-theme="dark"] .status-badge.status-completed {
+  background: #16391f;
+  color: #6fcf85;
+}
+
+html[data-theme="dark"] .status-badge.status-cancelled {
+  background: #402024;
+  color: #ff8a95;
 }
 
 .session-progress {
@@ -434,6 +497,7 @@ main {
   padding: 14px 12px;
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-sm);
+  background: var(--color-canvas);
   color: var(--color-ink);
 }
 
@@ -547,6 +611,7 @@ main {
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-sm);
   resize: vertical;
+  background: var(--color-canvas);
   color: var(--color-ink);
 }
 
@@ -564,6 +629,7 @@ main {
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius-sm);
   min-height: 48px;
+  background: var(--color-canvas);
   color: var(--color-ink);
 }
 

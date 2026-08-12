@@ -121,6 +121,35 @@ const SESSION_STATUS_LABELS = {
 };
 
 // ===================================================================
+// 2-2. 다크모드 토글 (UI 표시 설정 — 상담 데이터가 아니므로 localStorage에 저장해도 무방)
+// ===================================================================
+const THEME_STORAGE_KEY = 'pb_compliance_app::theme';
+
+function initThemeToggle() {
+  const toggleBtn = document.getElementById('theme-toggle-btn');
+
+  const syncButton = () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    toggleBtn.textContent = isDark ? '☀️' : '🌙';
+    toggleBtn.setAttribute('aria-label', isDark ? '라이트 모드로 전환' : '다크 모드로 전환');
+    toggleBtn.title = toggleBtn.getAttribute('aria-label');
+  };
+
+  syncButton();
+
+  toggleBtn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch (e) {
+      // localStorage를 쓸 수 없는 환경(프라이빗 모드 등)이어도 화면 전환 자체는 계속 동작해야 한다
+    }
+    syncButton();
+  });
+}
+
+// ===================================================================
 // 3. Supabase 저장소 계층
 // ===================================================================
 // 이 앱은 로그인 기능이 없는 내부용 도구라 publishable(anon) 키를 그대로 클라이언트에 둔다.
@@ -806,6 +835,7 @@ function init() {
   }
 
   initScrollReveal();
+  initThemeToggle();
 }
 
 document.addEventListener('DOMContentLoaded', init);

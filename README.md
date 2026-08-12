@@ -16,6 +16,7 @@
 - **검색/필터**: 대시보드에서 고객명(별칭) 검색 + 상태(진행중/완료/취소) 필터
 - **상담 내역 삭제**: 대시보드 각 세션 행에서 확인 절차를 거쳐 완전 삭제 (연결된 변경 이력도 함께 삭제됨)
 - **스크롤 애니메이션**: 랜딩페이지의 기능 카드·클로징 섹션이 스크롤로 화면에 들어올 때 서서히 나타남 (라이브러리 없이 IntersectionObserver로 구현)
+- **다크모드**: 헤더의 토글 버튼으로 랜딩·대시보드·상담·라이브러리 전 화면에서 라이트/다크 테마 전환, 최초 접속 시 시스템 설정을 따르고 이후 선택은 기기에 저장되어 유지됨
 
 ## 화면 구성
 
@@ -108,7 +109,7 @@ project/
 ├─ css/style.css        # Airbnb 스타일 기반 디자인 시스템
 ├─ js/app.js            # 정적 데이터, 상태관리, 렌더링, Supabase 연동 로직
 ├─ image/               # 랜딩페이지용 사진 (Unsplash, 무료 라이선스)
-├─ font/                # Inter 가변 폰트 (SIL Open Font License, 자체 호스팅)
+├─ font/                # Pretendard 가변 폰트 (SIL Open Font License, 자체 호스팅)
 ├─ PRD.md               # 제품 요구사항 정의서
 ├─ DESIGN.md            # 디자인 시스템(Airbnb 스타일) 토큰 정의
 └─ CLAUDE.md            # 이 프로젝트의 기술/작업 규칙
@@ -120,6 +121,6 @@ project/
 
 ## 출처 및 라이선스
 
-- 폰트: [Inter](https://rsms.me/inter/) (SIL Open Font License 1.1)
+- 폰트: [Pretendard](https://github.com/orioncactus/pretendard) (SIL Open Font License 1.1) — 한글·영문을 함께 깔끔하게 지원하기 위해 Inter에서 교체
 - 이미지: [Unsplash](https://unsplash.com) (Unsplash License, 무료 사용 가능)
 - 디자인 시스템: Airbnb 웹사이트 분석 기반 참고 자료(`DESIGN.md`), Airbnb의 실제 상표·폰트(Cereal/Circular)는 포함하지 않음
