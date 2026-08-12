@@ -693,7 +693,17 @@ async function renderConsultation() {
 
   picker.querySelectorAll('.type-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      session.productTypeId = btn.dataset.type;
+      const newType = btn.dataset.type;
+      if (newType === session.productTypeId) return;
+
+      // 현재 표시된 체크리스트에 하나라도 체크된 항목이 있으면 실수로 초기화되지 않도록 확인을 받는다
+      const currentItems = CHECKLISTS[session.productTypeId];
+      const hasChecked = !!currentItems && currentItems.some((item) => session.checklist[item.id]);
+      if (hasChecked && !confirm('체크리스트에 확인된 내용이 있습니다. 변경하시겠습니까?')) {
+        return;
+      }
+
+      session.productTypeId = newType;
       picker.querySelectorAll('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
       renderChecklist(session);
       renderScriptPanel(session.productTypeId, document.getElementById('consultation-script-panel'));
