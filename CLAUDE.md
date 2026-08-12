@@ -2,7 +2,7 @@
 
 - **순수 HTML/CSS/JS**: 빌드 도구(번들러/트랜스파일러)·npm 없이 순수 HTML/CSS/JS로만 구현한다. 단, Supabase JS 클라이언트는 CDN `<script>` 태그로 로드하는 예외를 둔다 (아래 "데이터 저장" 참고).
 - **파일 구성 고정**: 코드 파일은 `index.html`, `style.css`, `app.js` 3개만 유지한다. 파일을 추가로 분리하지 않는다.
-- **데이터 저장 (Supabase)**: 데이터는 Supabase(Postgres) `consultation_sessions` 테이블에 저장한다. 로그인 기능이 없는 내부용 도구라 publishable(anon) 키를 클라이언트 코드에 그대로 둔다 — 이 키를 아는 사람은 누구나 데이터를 읽고 쓸 수 있다는 뜻이다. 실제 고객 데이터를 다루려면 Supabase Auth + RLS로 사용자별 접근 제어를 반드시 추가해야 한다.
+- **데이터 저장 (Supabase)**: 데이터는 Supabase(Postgres) `consultation_sessions`(상담 세션·상태), `session_audit_log`(체크리스트·상태 변경 감사 로그), `custom_scripts`(PB 등록 고지 스크립트) 테이블에 저장한다. 로그인 기능이 없는 내부용 도구라 publishable(anon) 키를 클라이언트 코드에 그대로 둔다 — 이 키를 아는 사람은 누구나 데이터를 읽고 쓸 수 있다는 뜻이다. 실제 고객 데이터를 다루려면 Supabase Auth + RLS로 사용자별 접근 제어를 반드시 추가해야 한다.
   - 이 예외 이전에는 브라우저 `localStorage`만 사용해 완전 오프라인으로 동작했다. Supabase 전환 이후로는 인터넷 연결이 없으면 상담 목록 조회·저장이 되지 않는다.
 
 # 작업 규칙

@@ -9,16 +9,22 @@
 - **상담 체크리스트**: 상품유형(펀드/ELS·ELB/채권/신탁)별 필수 확인·고지 항목을 체크리스트로 안내
 - **상담 메모장**: 고객별 상담 세션을 만들어 별칭, 상품유형, 메모를 기록하고 언제든 다시 열람
 - **고지 스크립트 라이브러리**: 상품유형별 필수 고지 문구 전문을 상담 중이나 별도 화면에서 열람
-- **검색**: 대시보드에서 고객명(별칭)으로 상담 세션 검색
+- **PB 커스텀 스크립트**: PB가 상품유형별로 자신만의 고지 스크립트를 직접 등록·삭제 (라이브러리 화면 + 상담 화면 스크립트 패널에 함께 노출)
+- **상담 상태 관리**: 상담 화면에서 "상담 완료"/"상담 취소" 처리, 대시보드에 상태뱃지·체크리스트 완료율로 표시
+- **변경 이력(감사 로그)**: 체크리스트 체크/해제, 상태 변경, 세션 생성 이력을 상담 화면의 "변경 이력" 패널에서 확인
+- **상담 요약 인쇄**: 상담 화면에서 고객명·상품유형·체크리스트·메모를 인쇄(브라우저 인쇄 기능으로 PDF 저장 겸용)
+- **검색/필터**: 대시보드에서 고객명(별칭) 검색 + 상태(진행중/완료/취소) 필터
+- **상담 내역 삭제**: 대시보드 각 세션 행에서 확인 절차를 거쳐 완전 삭제 (연결된 변경 이력도 함께 삭제됨)
+- **스크롤 애니메이션**: 랜딩페이지의 기능 카드·클로징 섹션이 스크롤로 화면에 들어올 때 서서히 나타남 (라이브러리 없이 IntersectionObserver로 구현)
 
 ## 화면 구성
 
 | 화면 | 설명 |
 |---|---|
 | 랜딩페이지 | 서비스 소개, 핵심 기능 3가지 하이라이트, 상담 목록으로 진입하는 CTA |
-| 상담 목록(대시보드) | 저장된 상담 세션 목록, 검색, 새 상담 시작 |
-| 상담 진행 | 고객명 입력, 상품유형 선택, 체크리스트, 고지 스크립트, 메모 작성 |
-| 스크립트 라이브러리 | 상품유형별 고지 스크립트 전체 열람 |
+| 상담 목록(대시보드) | 저장된 상담 세션 목록(상태뱃지·완료율 포함), 검색, 상태 필터, 새 상담 시작, 상담 내역 삭제 |
+| 상담 진행 | 고객명 입력, 상품유형 선택, 체크리스트, 고지 스크립트, 메모 작성, 완료/취소 처리, 변경 이력 조회, 요약 인쇄 |
+| 스크립트 라이브러리 | 상품유형별 고지 스크립트 전체 열람 + PB 커스텀 스크립트 등록/삭제 |
 
 ## 기술 스택
 
@@ -47,6 +53,8 @@ create table public.consultation_sessions (
   product_type_id text,
   checklist jsonb not null default '{}'::jsonb,
   notes text not null default '',
+  status text not null default 'in_progress'
+    check (status in ('in_progress', 'completed', 'cancelled')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -56,7 +64,41 @@ alter table public.consultation_sessions enable row level security;
 create policy "anon can select sessions" on public.consultation_sessions for select to anon using (true);
 create policy "anon can insert sessions" on public.consultation_sessions for insert to anon with check (true);
 create policy "anon can update sessions" on public.consultation_sessions for update to anon using (true) with check (true);
+create policy "anon can delete sessions" on public.consultation_sessions for delete to anon using (true);
+
+-- 감사 로그: 체크리스트 변경, 상태 변경, 세션 생성 이력
+create table public.session_audit_log (
+  id bigint generated always as identity primary key,
+  session_id text not null references public.consultation_sessions(id) on delete cascade,
+  event_type text not null,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.session_audit_log enable row level security;
+
+create policy "anon can select audit log" on public.session_audit_log for select to anon using (true);
+create policy "anon can insert audit log" on public.session_audit_log for insert to anon with check (true);
+
+-- PB가 직접 등록하는 커스텀 고지 스크립트
+create table public.custom_scripts (
+  id text primary key,
+  product_type_id text not null,
+  title text not null,
+  body text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.custom_scripts enable row level security;
+
+create policy "anon can select custom scripts" on public.custom_scripts for select to anon using (true);
+create policy "anon can insert custom scripts" on public.custom_scripts for insert to anon with check (true);
+create policy "anon can update custom scripts" on public.custom_scripts for update to anon using (true) with check (true);
+create policy "anon can delete custom scripts" on public.custom_scripts for delete to anon using (true);
 ```
+
+> 참고: 상담 세션을 삭제하면 `session_audit_log`의 관련 이력도 `on delete cascade`로 함께 삭제되어 복구할 수 없습니다. 감사 이력을 남기고 싶다면 삭제 대신 상태를 "취소"로 변경하는 방법도 있습니다.
 
 ## 폴더 구조
 

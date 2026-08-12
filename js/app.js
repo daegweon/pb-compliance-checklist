@@ -114,6 +114,12 @@ function getProductLabel(productTypeId) {
   return type ? type.label : '미선택';
 }
 
+const SESSION_STATUS_LABELS = {
+  in_progress: '진행중',
+  completed: '완료',
+  cancelled: '취소'
+};
+
 // ===================================================================
 // 3. Supabase 저장소 계층
 // ===================================================================
@@ -133,6 +139,7 @@ function rowToSession(row) {
     productTypeId: row.product_type_id,
     checklist: row.checklist || {},
     notes: row.notes || '',
+    status: row.status || 'in_progress',
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -145,6 +152,7 @@ function sessionToRow(session) {
     product_type_id: session.productTypeId,
     checklist: session.checklist,
     notes: session.notes,
+    status: session.status,
     created_at: session.createdAt,
     updated_at: session.updatedAt
   };
@@ -182,6 +190,12 @@ async function touchAndSaveSession(session) {
   await upsertSession(session);
 }
 
+// 세션 삭제 (연결된 session_audit_log 행은 FK on delete cascade로 함께 삭제됨)
+async function deleteSession(id) {
+  const { error } = await supabaseClient.from(SESSIONS_TABLE).delete().eq('id', id);
+  if (error) throw error;
+}
+
 async function createSession() {
   const now = new Date().toISOString();
   const session = {
@@ -190,11 +204,95 @@ async function createSession() {
     productTypeId: null,
     checklist: {},
     notes: '',
+    status: 'in_progress',
     createdAt: now,
     updatedAt: now
   };
   await upsertSession(session);
+  await logAuditEvent(session.id, 'session_created', {});
   return session;
+}
+
+// 상담 상태(진행중/완료/취소) 변경 + 변경 이력 기록을 함께 처리
+async function updateSessionStatus(session, newStatus) {
+  const prevStatus = session.status;
+  session.status = newStatus;
+  await touchAndSaveSession(session);
+  await logAuditEvent(session.id, 'status_changed', { from: prevStatus, to: newStatus });
+}
+
+// ===================================================================
+// 4. 감사 로그 (컴플라이언스: 체크리스트·상태 변경 이력)
+// ===================================================================
+const AUDIT_LOG_TABLE = 'session_audit_log';
+
+// 로그 기록 실패는 상담 진행 자체를 막지 않도록 에러만 남긴다
+async function logAuditEvent(sessionId, eventType, detail) {
+  const { error } = await supabaseClient
+    .from(AUDIT_LOG_TABLE)
+    .insert({ session_id: sessionId, event_type: eventType, detail: detail || {} });
+  if (error) console.error('감사 로그 기록 실패:', error);
+}
+
+async function loadAuditLog(sessionId) {
+  const { data, error } = await supabaseClient
+    .from(AUDIT_LOG_TABLE)
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+function describeAuditEvent(log) {
+  const d = log.detail || {};
+  if (log.event_type === 'status_changed') {
+    return `상태 변경: ${SESSION_STATUS_LABELS[d.from] || d.from || '없음'} → ${SESSION_STATUS_LABELS[d.to] || d.to}`;
+  }
+  if (log.event_type === 'checklist_item_changed') {
+    return `'${d.item_text || d.item_id}' ${d.checked ? '체크' : '체크 해제'}`;
+  }
+  if (log.event_type === 'session_created') {
+    return '상담 세션 생성';
+  }
+  return log.event_type;
+}
+
+// ===================================================================
+// 4-2. 커스텀 스크립트 저장소 계층 (PB가 직접 등록하는 고지 스크립트)
+// ===================================================================
+const CUSTOM_SCRIPTS_TABLE = 'custom_scripts';
+
+function rowToCustomScript(row) {
+  return {
+    id: row.id,
+    productTypeId: row.product_type_id,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at
+  };
+}
+
+async function loadCustomScripts(productTypeId) {
+  let query = supabaseClient
+    .from(CUSTOM_SCRIPTS_TABLE)
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (productTypeId) query = query.eq('product_type_id', productTypeId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data.map(rowToCustomScript);
+}
+
+async function createCustomScript({ productTypeId, title, body }) {
+  const row = { id: generateId(), product_type_id: productTypeId, title, body };
+  const { error } = await supabaseClient.from(CUSTOM_SCRIPTS_TABLE).insert(row);
+  if (error) throw error;
+}
+
+async function deleteCustomScript(id) {
+  const { error } = await supabaseClient.from(CUSTOM_SCRIPTS_TABLE).delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ===================================================================
@@ -203,8 +301,13 @@ async function createSession() {
 const state = {
   currentView: 'landing',
   activeSessionId: null,
-  dashboardSearch: ''
+  activeSession: null,
+  dashboardSearch: '',
+  dashboardStatusFilter: 'all'
 };
+
+// 라이브러리 화면의 "나만의 스크립트 등록" 폼에서 현재 선택된 상품유형
+let customScriptFormTypeId = PRODUCT_TYPES[0].id;
 
 function showView(viewId) {
   document.querySelectorAll('.view').forEach((section) => {
@@ -268,14 +371,30 @@ function handleHashChange() {
 // ===================================================================
 
 // 상담화면·라이브러리 화면 공용: 특정 상품유형의 고지 스크립트를 targetEl에 렌더링
-function renderScriptPanel(productTypeId, targetEl) {
+// (내장 스크립트 + 해당 상품유형에 등록된 PB 커스텀 스크립트를 함께 보여준다)
+async function renderScriptPanel(productTypeId, targetEl) {
   const script = SCRIPTS[productTypeId];
   if (!script) {
     targetEl.innerHTML = '<p class="empty">상품유형을 선택하면 고지 스크립트가 표시됩니다.</p>';
     return;
   }
   const paragraphs = script.body.map((p) => `<p>${escapeHtml(p)}</p>`).join('');
-  targetEl.innerHTML = `<h4>${escapeHtml(script.title)}</h4>${paragraphs}`;
+  targetEl.innerHTML = `<h4>${escapeHtml(script.title)}</h4>${paragraphs}<div class="custom-script-inline" data-role="custom-scripts"></div>`;
+
+  const customContainer = targetEl.querySelector('[data-role="custom-scripts"]');
+  try {
+    const customScripts = await loadCustomScripts(productTypeId);
+    if (customScripts.length === 0) {
+      customContainer.innerHTML = '';
+      return;
+    }
+    customContainer.innerHTML = `<h4>PB 등록 스크립트</h4>${customScripts.map((s) =>
+      `<p><strong>${escapeHtml(s.title)}</strong><br>${escapeHtml(s.body)}</p>`
+    ).join('')}`;
+  } catch (e) {
+    console.error('커스텀 스크립트 조회 실패:', e);
+    customContainer.innerHTML = '';
+  }
 }
 
 async function renderDashboard() {
@@ -295,9 +414,12 @@ async function renderDashboard() {
   if (term) {
     sessions = sessions.filter((s) => s.customerAlias.includes(term));
   }
+  if (state.dashboardStatusFilter !== 'all') {
+    sessions = sessions.filter((s) => s.status === state.dashboardStatusFilter);
+  }
 
   if (sessions.length === 0) {
-    container.innerHTML = term
+    container.innerHTML = (term || state.dashboardStatusFilter !== 'all')
       ? '<p class="empty">검색 결과가 없습니다.</p>'
       : '<p class="empty">저장된 상담이 없습니다.</p>';
     return;
@@ -305,16 +427,44 @@ async function renderDashboard() {
 
   container.innerHTML = sessions.map((s) => {
     const alias = s.customerAlias || '(고객명 미입력)';
+    const items = CHECKLISTS[s.productTypeId];
+    const total = items ? items.length : 0;
+    const done = items ? items.filter((item) => s.checklist[item.id]).length : 0;
+    const progressLabel = total > 0 ? `${done}/${total} 완료` : '상품유형 미선택';
+    const progressPct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const statusLabel = SESSION_STATUS_LABELS[s.status] || s.status;
     return `<div class="session-row" data-id="${escapeHtml(s.id)}">
       <span class="session-date">${formatDateTime(s.updatedAt)}</span>
       <span class="session-alias">${escapeHtml(alias)}</span>
       <span class="badge">${escapeHtml(getProductLabel(s.productTypeId))}</span>
+      <span class="status-badge status-${escapeHtml(s.status)}">${escapeHtml(statusLabel)}</span>
+      <span class="session-progress">
+        <span class="progress-track"><span class="progress-fill" style="width:${progressPct}%"></span></span>
+        ${escapeHtml(progressLabel)}
+      </span>
+      <button type="button" class="btn-outline-pill btn-outline-pill-danger btn-pill-sm session-delete-btn" data-delete-id="${escapeHtml(s.id)}">삭제</button>
     </div>`;
   }).join('');
 
   container.querySelectorAll('.session-row').forEach((row) => {
     row.addEventListener('click', () => {
       navigateTo('consultation', row.dataset.id);
+    });
+  });
+
+  container.querySelectorAll('.session-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('이 상담 내역을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.')) return;
+      btn.disabled = true;
+      try {
+        await deleteSession(btn.dataset.deleteId);
+        await renderDashboard();
+      } catch (err) {
+        console.error('세션 삭제 실패:', err);
+        alert('삭제에 실패했습니다.');
+        btn.disabled = false;
+      }
     });
   });
 }
@@ -333,6 +483,16 @@ async function renderConsultation() {
     replaceView('dashboard');
     return;
   }
+
+  state.activeSession = session;
+
+  const statusBadge = document.getElementById('session-status-badge');
+  statusBadge.textContent = SESSION_STATUS_LABELS[session.status] || session.status;
+  statusBadge.className = `status-badge status-${session.status}`;
+
+  // 세션을 새로 열 때마다 변경 이력 패널은 접힌 상태로 초기화한다 (이전 세션의 내용이 남지 않도록)
+  document.getElementById('history-panel').hidden = true;
+  document.getElementById('history-list').innerHTML = '';
 
   // 텍스트 입력은 매 키 입력마다 저장하지 않고 타이핑이 멈췄을 때만 저장한다
   const debouncedSave = debounce(() => touchAndSaveSession(session), 500);
@@ -393,8 +553,60 @@ function renderChecklist(session) {
     cb.addEventListener('change', () => {
       session.checklist[cb.dataset.itemId] = cb.checked;
       touchAndSaveSession(session);
+      const item = items.find((i) => i.id === cb.dataset.itemId);
+      logAuditEvent(session.id, 'checklist_item_changed', {
+        item_id: cb.dataset.itemId,
+        item_text: item ? item.text : cb.dataset.itemId,
+        checked: cb.checked
+      });
     });
   });
+}
+
+// 상담화면의 "변경 이력" 패널 채우기
+async function renderHistoryPanel(sessionId) {
+  const list = document.getElementById('history-list');
+  list.innerHTML = '<li class="empty">불러오는 중...</li>';
+  let logs;
+  try {
+    logs = await loadAuditLog(sessionId);
+  } catch (e) {
+    console.error('변경 이력 조회 실패:', e);
+    list.innerHTML = '<li class="empty">이력을 불러올 수 없습니다.</li>';
+    return;
+  }
+  if (logs.length === 0) {
+    list.innerHTML = '<li class="empty">변경 이력이 없습니다.</li>';
+    return;
+  }
+  list.innerHTML = logs.map((log) =>
+    `<li class="history-item"><span class="history-time">${formatDateTime(log.created_at)}</span>${escapeHtml(describeAuditEvent(log))}</li>`
+  ).join('');
+}
+
+// 상담 요약을 인쇄 전용 영역(#print-summary)에 채워 넣는다
+function buildPrintSummary(session) {
+  const items = CHECKLISTS[session.productTypeId] || [];
+  const checklistHtml = items.length
+    ? `<ul>${items.map((item) =>
+        `<li>${session.checklist[item.id] ? '☑' : '☐'} ${escapeHtml(item.text)}</li>`
+      ).join('')}</ul>`
+    : '<p>선택된 상품유형이 없습니다.</p>';
+
+  document.getElementById('print-summary').innerHTML = `
+    <h2>상담 기록 요약</h2>
+    <div class="print-meta">
+      <p>고객명(별칭): ${escapeHtml(session.customerAlias || '(미입력)')}</p>
+      <p>상품유형: ${escapeHtml(getProductLabel(session.productTypeId))}</p>
+      <p>상태: ${escapeHtml(SESSION_STATUS_LABELS[session.status] || session.status)}</p>
+      <p>작성일시: ${formatDateTime(session.createdAt)} / 최종수정: ${formatDateTime(session.updatedAt)}</p>
+    </div>
+    <h3>체크리스트</h3>
+    ${checklistHtml}
+    <h3>상담 메모</h3>
+    <div class="notes-block">${escapeHtml(session.notes || '(작성된 메모 없음)')}</div>
+    <p class="print-footer">출력일시: ${formatDateTime(new Date().toISOString())}</p>
+  `;
 }
 
 function renderLibrary() {
@@ -409,6 +621,89 @@ function renderLibrary() {
   PRODUCT_TYPES.forEach((type) => {
     renderScriptPanel(type.id, document.getElementById(`script-body-${type.id}`));
   });
+
+  renderCustomScriptTypePicker();
+  renderCustomScriptList();
+}
+
+function renderCustomScriptTypePicker() {
+  const picker = document.getElementById('custom-script-type-picker');
+  picker.innerHTML = PRODUCT_TYPES.map((type) =>
+    `<button type="button" class="type-btn ${type.id === customScriptFormTypeId ? 'active' : ''}" data-type="${type.id}">${escapeHtml(type.label)}</button>`
+  ).join('');
+
+  picker.querySelectorAll('.type-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      customScriptFormTypeId = btn.dataset.type;
+      picker.querySelectorAll('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    });
+  });
+}
+
+async function renderCustomScriptList() {
+  const container = document.getElementById('custom-script-list');
+  container.innerHTML = '<p class="empty">불러오는 중...</p>';
+
+  let scripts;
+  try {
+    scripts = await loadCustomScripts();
+  } catch (e) {
+    console.error('커스텀 스크립트 조회 실패:', e);
+    container.innerHTML = '<p class="empty">등록된 스크립트를 불러올 수 없습니다.</p>';
+    return;
+  }
+
+  if (scripts.length === 0) {
+    container.innerHTML = '<p class="empty">등록된 나만의 스크립트가 없습니다.</p>';
+    return;
+  }
+
+  container.innerHTML = scripts.map((s) => `
+    <article class="script-card custom-script-card">
+      <div class="section-row">
+        <h3>${escapeHtml(s.title)} <span class="badge">${escapeHtml(getProductLabel(s.productTypeId))}</span></h3>
+        <button type="button" class="btn-outline-pill btn-outline-pill-danger btn-pill-sm" data-delete-id="${escapeHtml(s.id)}">삭제</button>
+      </div>
+      <p>${escapeHtml(s.body)}</p>
+    </article>
+  `).join('');
+
+  container.querySelectorAll('[data-delete-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('이 스크립트를 삭제하시겠습니까?')) return;
+      btn.disabled = true;
+      try {
+        await deleteCustomScript(btn.dataset.deleteId);
+        await renderCustomScriptList();
+      } catch (e) {
+        console.error('스크립트 삭제 실패:', e);
+        alert('삭제에 실패했습니다.');
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// 랜딩페이지 카드/클로징 섹션이 스크롤로 화면에 들어오면 서서히 나타나게 한다 (한 번 나타난 뒤에는 유지)
+function initScrollReveal() {
+  const revealEls = document.querySelectorAll('.reveal');
+  if (!revealEls.length) return;
+
+  if (!('IntersectionObserver' in window)) {
+    revealEls.forEach((el) => el.classList.add('in-view'));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in-view');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  revealEls.forEach((el) => observer.observe(el));
 }
 
 // ===================================================================
@@ -436,6 +731,62 @@ function init() {
     state.dashboardSearch = e.target.value;
     debouncedSearchRender();
   });
+  document.getElementById('session-status-filter').addEventListener('change', (e) => {
+    state.dashboardStatusFilter = e.target.value;
+    renderDashboard();
+  });
+
+  // 상담 완료/취소/인쇄/변경이력 버튼은 상담화면 재렌더 때마다 다시 만들어지는 DOM이 아니므로
+  // (중복 바인딩을 피하기 위해) init()에서 한 번만 바인딩하고, 대상 세션은 state.activeSession으로 참조한다
+  document.getElementById('complete-session-btn').addEventListener('click', async () => {
+    const session = state.activeSession;
+    if (!session) return;
+    await updateSessionStatus(session, 'completed');
+    navigateTo('dashboard');
+  });
+  document.getElementById('cancel-session-btn').addEventListener('click', async () => {
+    const session = state.activeSession;
+    if (!session) return;
+    if (!confirm('이 상담을 취소 처리하시겠습니까?')) return;
+    await updateSessionStatus(session, 'cancelled');
+    navigateTo('dashboard');
+  });
+  document.getElementById('history-toggle-btn').addEventListener('click', () => {
+    const panel = document.getElementById('history-panel');
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden && state.activeSession) {
+      renderHistoryPanel(state.activeSession.id);
+    }
+  });
+  document.getElementById('print-summary-btn').addEventListener('click', () => {
+    if (!state.activeSession) return;
+    buildPrintSummary(state.activeSession);
+    window.print();
+  });
+
+  document.getElementById('custom-script-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const titleEl = document.getElementById('custom-script-title');
+    const bodyEl = document.getElementById('custom-script-body');
+    const title = titleEl.value.trim();
+    const body = bodyEl.value.trim();
+    if (!title || !body) return;
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      await createCustomScript({ productTypeId: customScriptFormTypeId, title, body });
+      titleEl.value = '';
+      bodyEl.value = '';
+      await renderCustomScriptList();
+    } catch (err) {
+      console.error('스크립트 등록 실패:', err);
+      alert('등록에 실패했습니다.');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
   document.getElementById('brand-link').addEventListener('click', () => {
     navigateTo('landing');
   });
@@ -453,6 +804,8 @@ function init() {
   } else {
     showView('landing');
   }
+
+  initScrollReveal();
 }
 
 document.addEventListener('DOMContentLoaded', init);

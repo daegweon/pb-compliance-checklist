@@ -34,24 +34,24 @@
   </div>
 
   <div class="landing-features">
-    <article class="feature-card">
+    <article class="feature-card reveal">
       <img src="image/feature-checklist.jpg" alt="체크리스트" loading="lazy" decoding="async">
       <h3>상담 체크리스트</h3>
       <p>상품유형별 필수 확인·고지 항목을 빠짐없이 안내합니다.</p>
     </article>
-    <article class="feature-card">
+    <article class="feature-card reveal">
       <img src="image/feature-notes.jpg" alt="상담 메모" loading="lazy" decoding="async">
       <h3>상담 메모장</h3>
       <p>고객별 상담 내용을 세션 단위로 기록하고 다시 찾아볼 수 있습니다.</p>
     </article>
-    <article class="feature-card">
+    <article class="feature-card reveal">
       <img src="image/feature-scripts.jpg" alt="고지 스크립트" loading="lazy" decoding="async">
       <h3>고지 스크립트 라이브러리</h3>
       <p>상품유형별 필수 고지 스크립트를 언제든 열람할 수 있습니다.</p>
     </article>
   </div>
 
-  <div class="landing-closing">
+  <div class="landing-closing reveal">
     <h2>지금 바로 상담 준비를 시작하세요</h2>
     <button type="button" id="landing-cta-btn-2" class="btn-pill-primary">상담 목록 보러가기</button>
   </div>
@@ -63,7 +63,15 @@
       <h2>상담 목록</h2>
       <button type="button" id="new-session-btn">+ 새 상담 시작</button>
     </div>
-    <input type="text" id="session-search" placeholder="고객명(별칭)으로 검색">
+    <div class="dashboard-filters">
+      <input type="text" id="session-search" placeholder="고객명(별칭)으로 검색">
+      <select id="session-status-filter">
+        <option value="all">전체 상태</option>
+        <option value="in_progress">진행중</option>
+        <option value="completed">완료</option>
+        <option value="cancelled">취소</option>
+      </select>
+    </div>
     <div id="session-list"></div>
   </section>
 
@@ -71,6 +79,21 @@
     <div class="section-row">
       <button type="button" id="back-to-dashboard-btn">← 상담 목록으로</button>
       <h2>상담 진행</h2>
+    </div>
+
+    <div class="consultation-toolbar">
+      <span id="session-status-badge" class="status-badge"></span>
+      <div class="consultation-actions">
+        <button type="button" id="history-toggle-btn" class="btn-outline-pill">변경 이력</button>
+        <button type="button" id="print-summary-btn" class="btn-outline-pill">인쇄</button>
+        <button type="button" id="cancel-session-btn" class="btn-outline-pill btn-outline-pill-danger">상담 취소</button>
+        <button type="button" id="complete-session-btn" class="btn-pill-primary btn-pill-sm">상담 완료</button>
+      </div>
+    </div>
+
+    <div class="consultation-block" id="history-panel" hidden>
+      <label class="field-label">변경 이력</label>
+      <ul id="history-list" class="history-list"></ul>
     </div>
 
     <div class="consultation-block">
@@ -102,8 +125,27 @@
   <section id="view-library" class="view hidden">
     <h2>스크립트 라이브러리</h2>
     <div id="library-content"></div>
+
+    <div class="consultation-block">
+      <div class="section-row">
+        <h2>나만의 스크립트 등록</h2>
+      </div>
+      <form id="custom-script-form" class="custom-script-form">
+        <label class="field-label">상품유형</label>
+        <div id="custom-script-type-picker" class="product-type-picker"></div>
+        <label class="field-label" for="custom-script-title">스크립트 제목</label>
+        <input type="text" id="custom-script-title" placeholder="예: OO펀드 환매 안내 보충 설명" required>
+        <label class="field-label" for="custom-script-body">스크립트 내용</label>
+        <textarea id="custom-script-body" rows="4" placeholder="상담 중 참고할 고지 스크립트 내용을 입력하세요" required></textarea>
+        <button type="submit" class="btn-pill-primary btn-pill-sm">등록</button>
+      </form>
+    </div>
+
+    <div id="custom-script-list"></div>
   </section>
 </main>
+
+<div id="print-summary" class="print-summary"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="js/app.js"></script>
