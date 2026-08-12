@@ -104,6 +104,7 @@ body {
 .app-title {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-sm);
   margin: 0;
   padding: 4px;
   border: none;
@@ -119,6 +120,16 @@ body {
 
 .brand-icon {
   display: block;
+  flex-shrink: 0;
+}
+
+.brand-title {
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--color-ink);
+  white-space: nowrap;
 }
 
 .app-header-actions {
@@ -963,6 +974,9 @@ html[data-theme="dark"] .status-badge.status-cancelled {
 @media (max-width: 743px) {
   .app-header-inner {
     flex-wrap: wrap;
+  }
+  .brand-title {
+    display: none;
   }
   .landing-hero-title {
     font-size: 24px;
