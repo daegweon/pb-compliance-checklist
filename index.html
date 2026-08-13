@@ -34,8 +34,8 @@
       </nav>
       <span id="user-email-display" class="user-email-display" hidden></span>
       <button type="button" id="logout-btn" class="header-text-btn" hidden>로그아웃</button>
-      <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" aria-label="다크 모드로 전환" title="다크 모드로 전환">🌙</button>
       <button type="button" id="header-login-btn" class="header-text-btn" hidden>로그인</button>
+      <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" aria-label="다크 모드로 전환" title="다크 모드로 전환">🌙</button>
     </div>
   </div>
 </header>
@@ -129,6 +129,15 @@
 
     <div class="consultation-block" id="history-panel" hidden>
       <label class="field-label">변경 이력</label>
+      <div class="history-filters">
+        <input type="text" id="history-search" placeholder="이력 내용 검색 (예: 손실 가능성, 완료)">
+        <select id="history-type-filter">
+          <option value="all">전체 항목</option>
+          <option value="checklist_item_changed">체크리스트 변경</option>
+          <option value="status_changed">상태 변경</option>
+          <option value="session_created">세션 생성</option>
+        </select>
+      </div>
       <ul id="history-list" class="history-list"></ul>
     </div>
 

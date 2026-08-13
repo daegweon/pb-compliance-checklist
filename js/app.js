@@ -517,6 +517,9 @@ function computeDashboardStats(sessions) {
 
   const inProgressCount = sessions.filter((s) => s.status === 'in_progress').length;
 
+  // 완료로 표시됐지만 해당 상품유형의 체크리스트를 다 채우지 않은 세션 (불완전판매 리스크)
+  const incompleteCompletedCount = sessions.filter((s) => isIncompleteCompletion(s)).length;
+
   const productBreakdown = PRODUCT_TYPES.map((type) => ({
     label: type.label,
     count: sessions.filter((s) => s.productTypeId === type.id).length
@@ -529,9 +532,19 @@ function computeDashboardStats(sessions) {
     thisWeekCompleted,
     thisWeekTotal: thisWeekSessions.length,
     inProgressCount,
+    incompleteCompletedCount,
     productBreakdown,
     unselectedCount
   };
+}
+
+// 완료 처리된 상담인데 체크리스트가 100% 채워지지 않은 경우를 판별한다
+function isIncompleteCompletion(session) {
+  if (session.status !== 'completed') return false;
+  const items = CHECKLISTS[session.productTypeId];
+  if (!items || items.length === 0) return false;
+  const done = items.filter((item) => session.checklist[item.id]).length;
+  return done < items.length;
 }
 
 function renderDashboardStats(sessions) {
@@ -560,6 +573,10 @@ function renderDashboardStats(sessions) {
     <div class="stat-card">
       <span class="stat-label">진행중 상담</span>
       <span class="stat-value">${stats.inProgressCount}건</span>
+    </div>
+    <div class="stat-card${stats.incompleteCompletedCount > 0 ? ' stat-card-warning' : ''}">
+      <span class="stat-label">체크리스트 미이행 경보</span>
+      <span class="stat-value">${stats.incompleteCompletedCount}건</span>
     </div>
     <div class="stat-card stat-card-wide">
       <span class="stat-label">상품유형별 분포</span>
@@ -645,7 +662,8 @@ async function renderDashboard() {
     const progressLabel = total > 0 ? `${done}/${total} 완료` : '상품유형 미선택';
     const progressPct = total > 0 ? Math.round((done / total) * 100) : 0;
     const statusLabel = SESSION_STATUS_LABELS[s.status] || s.status;
-    return `<div class="session-row" data-id="${escapeHtml(s.id)}">
+    const incompleteWarning = isIncompleteCompletion(s);
+    return `<div class="session-row${incompleteWarning ? ' session-row-warning' : ''}" data-id="${escapeHtml(s.id)}">
       <span class="session-date">${formatDateTime(s.updatedAt)}</span>
       <span class="session-alias">${escapeHtml(alias)}</span>
       <span class="badge">${escapeHtml(getProductLabel(s.productTypeId))}</span>
@@ -654,6 +672,7 @@ async function renderDashboard() {
         완료
       </label>
       <span class="status-badge status-${escapeHtml(s.status)}">${escapeHtml(statusLabel)}</span>
+      ${incompleteWarning ? `<span class="incomplete-warning-badge" title="완료 처리됐지만 체크리스트가 100% 채워지지 않았습니다">⚠ 미이행 경보</span>` : ''}
       <span class="session-progress">
         <span class="progress-track"><span class="progress-fill" style="width:${progressPct}%"></span></span>
         ${escapeHtml(progressLabel)}
@@ -723,9 +742,12 @@ async function renderConsultation() {
   statusBadge.textContent = SESSION_STATUS_LABELS[session.status] || session.status;
   statusBadge.className = `status-badge status-${session.status}`;
 
-  // 세션을 새로 열 때마다 변경 이력 패널은 접힌 상태로 초기화한다 (이전 세션의 내용이 남지 않도록)
+  // 세션을 새로 열 때마다 변경 이력 패널은 접힌 상태로, 검색·필터도 초기화한다 (이전 세션의 내용이 남지 않도록)
   document.getElementById('history-panel').hidden = true;
   document.getElementById('history-list').innerHTML = '';
+  document.getElementById('history-search').value = '';
+  document.getElementById('history-type-filter').value = 'all';
+  currentHistoryLogs = [];
 
   // 텍스트 입력은 매 키 입력마다 저장하지 않고 타이핑이 멈췄을 때만 저장한다
   const debouncedSave = debounce(() => touchAndSaveSession(session), 500);
@@ -806,25 +828,55 @@ function renderChecklist(session) {
   });
 }
 
-// 상담화면의 "변경 이력" 패널 채우기
-async function renderHistoryPanel(sessionId) {
+// 현재 열려 있는 세션의 변경 이력 원본(필터 적용 전)을 담아둔다 — 검색어·항목 필터를 바꿀 때마다 다시 조회하지 않기 위함
+let currentHistoryLogs = [];
+
+// 검색어(이력 설명 텍스트 포함 여부)와 항목 유형으로 변경 이력을 좁힌다
+function filterHistoryLogs(logs, search, eventType) {
+  const term = search.trim().toLowerCase();
+  return logs.filter((log) => {
+    if (eventType !== 'all' && log.event_type !== eventType) return false;
+    if (term && !describeAuditEvent(log).toLowerCase().includes(term)) return false;
+    return true;
+  });
+}
+
+// 필터링된 변경 이력 목록을 그려준다
+function renderHistoryList(logs) {
   const list = document.getElementById('history-list');
-  list.innerHTML = '<li class="empty">불러오는 중...</li>';
-  let logs;
-  try {
-    logs = await loadAuditLog(sessionId);
-  } catch (e) {
-    console.error('변경 이력 조회 실패:', e);
-    list.innerHTML = '<li class="empty">이력을 불러올 수 없습니다.</li>';
+  if (currentHistoryLogs.length === 0) {
+    list.innerHTML = '<li class="empty">변경 이력이 없습니다.</li>';
     return;
   }
   if (logs.length === 0) {
-    list.innerHTML = '<li class="empty">변경 이력이 없습니다.</li>';
+    list.innerHTML = '<li class="empty">검색 결과가 없습니다.</li>';
     return;
   }
   list.innerHTML = logs.map((log) =>
     `<li class="history-item"><span class="history-time">${formatDateTime(log.created_at)}</span>${escapeHtml(describeAuditEvent(log))}</li>`
   ).join('');
+}
+
+// 현재 필터 입력값 기준으로 캐시된 이력을 다시 그린다
+function applyHistoryFilters() {
+  const search = document.getElementById('history-search').value;
+  const eventType = document.getElementById('history-type-filter').value;
+  renderHistoryList(filterHistoryLogs(currentHistoryLogs, search, eventType));
+}
+
+// 상담화면의 "변경 이력" 패널 채우기
+async function renderHistoryPanel(sessionId) {
+  const list = document.getElementById('history-list');
+  list.innerHTML = '<li class="empty">불러오는 중...</li>';
+  try {
+    currentHistoryLogs = await loadAuditLog(sessionId);
+  } catch (e) {
+    console.error('변경 이력 조회 실패:', e);
+    currentHistoryLogs = [];
+    list.innerHTML = '<li class="empty">이력을 불러올 수 없습니다.</li>';
+    return;
+  }
+  applyHistoryFilters();
 }
 
 // 상담 요약을 인쇄 전용 영역(#print-summary)에 채워 넣는다
@@ -1045,6 +1097,8 @@ async function init() {
       renderHistoryPanel(state.activeSession.id);
     }
   });
+  document.getElementById('history-search').addEventListener('input', debounce(applyHistoryFilters, 200));
+  document.getElementById('history-type-filter').addEventListener('change', applyHistoryFilters);
   document.getElementById('print-summary-btn').addEventListener('click', () => {
     if (!state.activeSession) return;
     buildPrintSummary(state.activeSession);
