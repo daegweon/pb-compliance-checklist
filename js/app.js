@@ -452,7 +452,8 @@ function handleHashChange() {
 
 // 상담화면·라이브러리 화면 공용: 특정 상품유형의 고지 스크립트를 targetEl에 렌더링
 // (내장 스크립트 + 해당 상품유형에 등록된 PB 커스텀 스크립트를 함께 보여준다)
-async function renderScriptPanel(productTypeId, targetEl) {
+// preloadedCustomScripts를 넘기면 조회 없이 그대로 사용한다 (라이브러리 화면에서 한 번에 불러온 목록을 재사용하기 위함)
+async function renderScriptPanel(productTypeId, targetEl, preloadedCustomScripts) {
   const script = SCRIPTS[productTypeId];
   if (!script) {
     targetEl.innerHTML = '<p class="empty">상품유형을 선택하면 고지 스크립트가 표시됩니다.</p>';
@@ -463,7 +464,7 @@ async function renderScriptPanel(productTypeId, targetEl) {
 
   const customContainer = targetEl.querySelector('[data-role="custom-scripts"]');
   try {
-    const customScripts = await loadCustomScripts(productTypeId);
+    const customScripts = preloadedCustomScripts || await loadCustomScripts(productTypeId);
     if (customScripts.length === 0) {
       customContainer.innerHTML = '';
       return;
@@ -904,7 +905,9 @@ function buildPrintSummary(session) {
   `;
 }
 
-function renderLibrary() {
+// 상품유형 4개 + "나만의 스크립트 목록"이 모두 같은 custom_scripts 테이블을 참조하므로,
+// 각자 따로 조회하지 않고 한 번만 불러와 나눠 쓴다 (라이브러리 화면 진입 시 중복 요청 5건 -> 1건)
+async function renderLibrary() {
   const container = document.getElementById('library-content');
   container.innerHTML = PRODUCT_TYPES.map((type) =>
     `<article class="script-card">
@@ -913,12 +916,20 @@ function renderLibrary() {
     </article>`
   ).join('');
 
+  let allCustomScripts = [];
+  try {
+    allCustomScripts = await loadCustomScripts();
+  } catch (e) {
+    console.error('커스텀 스크립트 조회 실패:', e);
+  }
+
   PRODUCT_TYPES.forEach((type) => {
-    renderScriptPanel(type.id, document.getElementById(`script-body-${type.id}`));
+    const scriptsForType = allCustomScripts.filter((s) => s.productTypeId === type.id);
+    renderScriptPanel(type.id, document.getElementById(`script-body-${type.id}`), scriptsForType);
   });
 
   renderCustomScriptTypePicker();
-  renderCustomScriptList();
+  renderCustomScriptList(allCustomScripts);
 }
 
 function renderCustomScriptTypePicker() {
@@ -935,17 +946,20 @@ function renderCustomScriptTypePicker() {
   });
 }
 
-async function renderCustomScriptList() {
+// preloadedScripts를 넘기면 조회 없이 그대로 사용한다 (라이브러리 화면 진입 시 renderLibrary가 한 번에 불러온 목록을 재사용하기 위함)
+async function renderCustomScriptList(preloadedScripts) {
   const container = document.getElementById('custom-script-list');
-  container.innerHTML = '<p class="empty">불러오는 중...</p>';
 
-  let scripts;
-  try {
-    scripts = await loadCustomScripts();
-  } catch (e) {
-    console.error('커스텀 스크립트 조회 실패:', e);
-    container.innerHTML = '<p class="empty">등록된 스크립트를 불러올 수 없습니다.</p>';
-    return;
+  let scripts = preloadedScripts;
+  if (!scripts) {
+    container.innerHTML = '<p class="empty">불러오는 중...</p>';
+    try {
+      scripts = await loadCustomScripts();
+    } catch (e) {
+      console.error('커스텀 스크립트 조회 실패:', e);
+      container.innerHTML = '<p class="empty">등록된 스크립트를 불러올 수 없습니다.</p>';
+      return;
+    }
   }
 
   if (scripts.length === 0) {
