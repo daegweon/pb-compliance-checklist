@@ -333,6 +333,7 @@ const CUSTOM_SCRIPTS_TABLE = 'custom_scripts';
 function rowToCustomScript(row) {
   return {
     id: row.id,
+    userId: row.user_id,
     productTypeId: row.product_type_id,
     title: row.title,
     body: row.body,
@@ -352,7 +353,9 @@ async function loadCustomScripts(productTypeId) {
 }
 
 async function createCustomScript({ productTypeId, title, body }) {
-  const row = { id: generateId(), product_type_id: productTypeId, title, body };
+  const user = await getCurrentUser();
+  if (!user) throw new Error('로그인이 필요합니다.');
+  const row = { id: generateId(), user_id: user.id, product_type_id: productTypeId, title, body };
   const { error } = await supabaseClient.from(CUSTOM_SCRIPTS_TABLE).insert(row);
   if (error) throw error;
 }

@@ -7,11 +7,11 @@
 ## 주요 기능
 
 - **Google 로그인**: Google 계정으로 로그인. 로그인하지 않은 상태에서 상담 목록/진행/라이브러리 화면에 접근하면 로그인 화면으로 이동
-- **사용자별 데이터 격리**: 상담 세션은 작성한 본인만 조회·수정·삭제 가능 (Supabase RLS로 DB 단에서 강제). 고지 스크립트 라이브러리는 로그인한 모든 사용자가 함께 쓰는 공용 자료
+- **사용자별 데이터 격리**: 상담 세션과 PB 커스텀 스크립트는 작성한 본인만 조회·수정·삭제 가능 (Supabase RLS로 DB 단에서 강제)
 - **상담 체크리스트**: 상품유형(펀드/ELS·ELB/채권/신탁)별 필수 확인·고지 항목을 체크리스트로 안내
 - **상담 메모장**: 고객별 상담 세션을 만들어 별칭, 상품유형, 메모를 기록하고 언제든 다시 열람
 - **고지 스크립트 라이브러리**: 상품유형별 필수 고지 문구 전문을 상담 중이나 별도 화면에서 열람
-- **PB 커스텀 스크립트**: 로그인한 사용자가 상품유형별로 자신만의 고지 스크립트를 등록·삭제 (라이브러리 화면 + 상담 화면 스크립트 패널에 함께 노출, 모든 사용자에게 공유됨)
+- **PB 커스텀 스크립트**: 로그인한 사용자가 상품유형별로 자신만의 고지 스크립트를 등록·삭제 (라이브러리 화면 + 상담 화면 스크립트 패널에 함께 노출되며, 본인이 등록한 스크립트만 보임)
 - **상담 상태 관리**: 상담 화면 하단의 "완료" 버튼으로 작성 내용 저장 후 상태를 완료 처리하고 목록으로 이동, "취소" 버튼은 저장 없이 목록으로 이동. 대시보드 목록에서도 체크박스로 완료 여부를 바로 토글 가능하며, 상태뱃지·체크리스트 완료율로도 표시
 - **변경 이력(감사 로그)**: 체크리스트 체크/해제, 상태 변경, 세션 생성 이력을 상담 화면의 "변경 이력" 패널에서 확인
 - **상담 요약 인쇄**: 상담 화면에서 고객명·상품유형·체크리스트·메모를 인쇄(브라우저 인쇄 기능으로 PDF 저장 겸용)
@@ -30,7 +30,7 @@
 | 로그인 | "Google로 로그인" 버튼, 오류 메시지 |
 | 상담 목록(대시보드) | 요약 통계 카드(오늘 상담·이번 주 완료율·진행중 건수·상품유형별 분포), 본인이 작성한 상담 세션 목록(상태뱃지·완료율·완료 체크박스 포함), 검색, 상태 필터, 새 상담 시작, 상담 내역 삭제, CSV 내보내기 |
 | 상담 진행 | 고객명 입력, 상품유형 선택, 체크리스트, 고지 스크립트, 메모 작성, 변경 이력 조회, 요약 인쇄, 화면 하단의 취소/완료 버튼 |
-| 스크립트 라이브러리 | 상품유형별 고지 스크립트 전체 열람 + 로그인 사용자 공용 커스텀 스크립트 등록/삭제 |
+| 스크립트 라이브러리 | 상품유형별 고지 스크립트 전체 열람 + 본인만 보이는 커스텀 스크립트 등록/삭제 |
 
 ## 기술 스택
 
@@ -91,9 +91,10 @@ create policy "users can select own session audit log" on public.session_audit_l
 create policy "users can insert own session audit log" on public.session_audit_log for insert to authenticated
   with check (exists (select 1 from public.consultation_sessions cs where cs.id = session_audit_log.session_id and cs.user_id = auth.uid()));
 
--- 로그인 사용자가 함께 쓰는 공용 커스텀 고지 스크립트 (소유자 구분 없음)
+-- 로그인한 본인만 보고 등록/삭제하는 커스텀 고지 스크립트
 create table public.custom_scripts (
   id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
   product_type_id text not null,
   title text not null,
   body text not null default '',
@@ -103,10 +104,10 @@ create table public.custom_scripts (
 
 alter table public.custom_scripts enable row level security;
 
-create policy "authenticated can select custom scripts" on public.custom_scripts for select to authenticated using (true);
-create policy "authenticated can insert custom scripts" on public.custom_scripts for insert to authenticated with check (true);
-create policy "authenticated can update custom scripts" on public.custom_scripts for update to authenticated using (true) with check (true);
-create policy "authenticated can delete custom scripts" on public.custom_scripts for delete to authenticated using (true);
+create policy "users can select own custom scripts" on public.custom_scripts for select to authenticated using (user_id = auth.uid());
+create policy "users can insert own custom scripts" on public.custom_scripts for insert to authenticated with check (user_id = auth.uid());
+create policy "users can update own custom scripts" on public.custom_scripts for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "users can delete own custom scripts" on public.custom_scripts for delete to authenticated using (user_id = auth.uid());
 ```
 
 > 참고: 상담 세션을 삭제하면 `session_audit_log`의 관련 이력도 `on delete cascade`로 함께 삭제되어 복구할 수 없습니다. 감사 이력을 남기고 싶다면 삭제 대신 상태를 "취소"로 변경하는 방법도 있습니다. 로그인 도입 이전에 만들어진 데이터는 `user_id`가 없어 어떤 계정으로도 조회되지 않습니다.
