@@ -84,10 +84,13 @@ const CHECKLISTS = {
 // ===================================================================
 // 2. 유틸리티
 // ===================================================================
+// textContent -> innerHTML 왕복만으로는 <, >, & 만 이스케이프되고 따옴표는 그대로 남아,
+// data-id="${escapeHtml(...)}" 같은 속성값 자리에 쓰일 때 속성을 깨고 나올 수 있다.
+// 그래서 따옴표도 직접 치환해 텍스트/속성 어느 자리에 넣어도 안전하게 만든다.
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str ?? '';
-  return div.innerHTML;
+  return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function generateId() {
@@ -243,7 +246,7 @@ async function getSession(id) {
 // session을 id 기준으로 upsert(있으면 교체, 없으면 추가). 실패해도 화면 흐름은 막지 않고 로그만 남긴다.
 async function upsertSession(session) {
   const { error } = await supabaseClient.from(SESSIONS_TABLE).upsert(sessionToRow(session));
-  if (error) console.error('세션 저장 실패:', error);
+  if (error) throw error;
   return session;
 }
 
@@ -381,8 +384,14 @@ const state = {
 let customScriptFormTypeId = PRODUCT_TYPES[0].id;
 
 const AUTH_REQUIRED_VIEWS = ['dashboard', 'consultation', 'library'];
+const VALID_VIEWS = ['landing', 'auth', 'dashboard', 'consultation', 'library'];
 
 function showView(viewId) {
+  // 알 수 없는 해시(#로 시작하는 임의 문자열)로 진입하면 랜딩 화면으로 되돌린다
+  if (!VALID_VIEWS.includes(viewId)) {
+    viewId = 'landing';
+  }
+
   // 로그인이 필요한 화면인데 로그인되어 있지 않으면 로그인 화면으로, 반대로 이미 로그인된 상태에서
   // 로그인 화면에 들어오면 대시보드로 보낸다 (URL 해시도 실제 표시되는 화면과 맞춰준다)
   if (AUTH_REQUIRED_VIEWS.includes(viewId) && !state.currentUser) {
@@ -589,9 +598,14 @@ function renderDashboardStats(sessions) {
   `;
 }
 
-// CSV 값 이스케이프: 쉼표·따옴표·줄바꿈이 포함되면 큰따옴표로 감싼다
+// CSV 값 이스케이프: 쉼표·따옴표·줄바꿈이 포함되면 큰따옴표로 감싼다.
+// 값이 =, +, -, @ 로 시작하면 엑셀·구글시트가 수식으로 해석해 실행할 수 있으므로(수식 인젝션),
+// 앞에 작은따옴표(')를 붙여 무조건 문자열로 취급되게 한다.
 function toCsvValue(value) {
-  const str = String(value ?? '');
+  let str = String(value ?? '');
+  if (/^[=+\-@]/.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -753,8 +767,12 @@ async function renderConsultation() {
   document.getElementById('history-type-filter').value = 'all';
   currentHistoryLogs = [];
 
-  // 텍스트 입력은 매 키 입력마다 저장하지 않고 타이핑이 멈췄을 때만 저장한다
-  const debouncedSave = debounce(() => touchAndSaveSession(session), 500);
+  // 텍스트 입력은 매 키 입력마다 저장하지 않고 타이핑이 멈췄을 때만 저장한다.
+  // 자동저장은 실패해도 타이핑 흐름을 막지 않고 콘솔에만 남긴다(사용자가 명시적으로 누르는
+  // "완료" 버튼은 이 자동저장과 별개로 저장 실패 시 알림을 띄우고 이동을 막는다).
+  const debouncedSave = debounce(() => {
+    touchAndSaveSession(session).catch((err) => console.error('자동 저장 실패:', err));
+  }, 500);
 
   const aliasEl = document.getElementById('alias-input');
   aliasEl.value = session.customerAlias;
@@ -784,7 +802,7 @@ async function renderConsultation() {
       picker.querySelectorAll('.type-btn').forEach((b) => b.classList.toggle('active', b === btn));
       renderChecklist(session);
       renderScriptPanel(session.productTypeId, document.getElementById('consultation-script-panel'));
-      touchAndSaveSession(session);
+      touchAndSaveSession(session).catch((err) => console.error('자동 저장 실패:', err));
     });
   });
 
@@ -821,7 +839,7 @@ function renderChecklist(session) {
   container.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', () => {
       session.checklist[cb.dataset.itemId] = cb.checked;
-      touchAndSaveSession(session);
+      touchAndSaveSession(session).catch((err) => console.error('자동 저장 실패:', err));
       const item = items.find((i) => i.id === cb.dataset.itemId);
       logAuditEvent(session.id, 'checklist_item_changed', {
         item_id: cb.dataset.itemId,
@@ -1049,6 +1067,9 @@ async function init() {
     try {
       const session = await createSession();
       navigateTo('consultation', session.id);
+    } catch (err) {
+      console.error('상담 세션 생성 실패:', err);
+      alert('상담 세션을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       btn.disabled = false;
     }
@@ -1100,6 +1121,9 @@ async function init() {
       // 디바운스된 자동저장을 기다리지 않고, 현재까지 입력된 내용을 즉시 저장한 뒤 완료 처리한다
       await updateSessionStatus(session, 'completed');
       navigateTo('dashboard');
+    } catch (err) {
+      console.error('상담 완료 처리 실패:', err);
+      alert('저장에 실패했습니다. 네트워크 연결을 확인한 뒤 다시 시도해주세요.');
     } finally {
       btn.disabled = false;
     }
